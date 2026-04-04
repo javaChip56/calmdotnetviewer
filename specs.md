@@ -42,6 +42,38 @@ The first release does not aim to provide:
 - A pure C# implementation of all CALM parsing, validation, and rendering logic
 - Full documentation generation and authoring workflows in the MVP
 
+## Implementation Status
+
+This section tracks what is currently built in the repository versus what remains planned.
+
+### Implemented
+
+- ASP.NET Core host application scaffold in `dotnet/src/CALMdotNetViewer.Web`
+- TypeScript viewer application scaffold in `dotnet/src/CALMdotNetViewer.ViewerApp`
+- Backend API endpoints for loading sample architectures, validation, and linked-architecture lookup
+- Sample architecture loading from a configurable folder via `ArchitectureSource:FolderPath` in appsettings
+- Real sample CALM JSON documents stored on disk and copied into the web app output
+- Frontend integration with CALM TypeScript packages for parsing and canonical model generation
+- Frontend integration with `calm-widgets` and Mermaid for actual CALM diagram rendering
+- Tree navigation and details panel for selecting and inspecting architecture elements
+- Solution-level backend and frontend test coverage for the current scaffold
+- GitHub workflows for CI, CodeQL-based code review, and tag-triggered release publishing
+
+### Partially Implemented
+
+- Architecture loading currently supports server-hosted sample files, but not user upload or persisted document libraries yet
+- Diagram rendering is using the real CALM pipeline, but click handling from the rendered SVG back into selection state is still limited
+- Linked architecture support exists through backend sample data and API routes, but deeper navigation flows in the frontend still need refinement
+- Validation exists as an API capability, but the end-user validation experience in the UI is still minimal
+
+### Planned Next
+
+- Upload and open arbitrary CALM JSON files through the web UI
+- Improve focused navigation across nodes, relationships, flows, and linked architectures
+- Add richer diagram interaction, including direct selection from rendered diagram elements
+- Expand persistence beyond sample files to support stored architecture collections
+- Harden the frontend bundle, dependency posture, and production readiness
+
 ## Primary Users
 
 ### Architecture Consumer
