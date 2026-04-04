@@ -27,6 +27,16 @@ export function linkedArchitectureRoute(id: string, linkedId: string, focus?: st
   return withFocus(`/architectures/${id}/linked/${linkedId}`, focus);
 }
 
+export function currentDocumentFocusRoute(
+  architectureId: string,
+  focus: string | null,
+  parentArchitectureId?: string | null
+): string {
+  return parentArchitectureId
+    ? linkedArchitectureRoute(parentArchitectureId, architectureId, focus)
+    : architectureRoute(architectureId, focus);
+}
+
 export function parseAppRoute(
   pathname: string,
   search = ""

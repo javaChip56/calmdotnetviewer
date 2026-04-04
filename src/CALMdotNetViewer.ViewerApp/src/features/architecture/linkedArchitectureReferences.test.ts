@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveSelectedNodeLinkedArchitectures } from "./linkedArchitectureReferences";
+import {
+  resolvePrimaryLinkedArchitecture,
+  resolveSelectedNodeLinkedArchitectures
+} from "./linkedArchitectureReferences";
 
 describe("resolveSelectedNodeLinkedArchitectures", () => {
   it("maps selected node detailed architecture references to resolved linked architectures", () => {
@@ -40,5 +43,31 @@ describe("resolveSelectedNodeLinkedArchitectures", () => {
       },
       []
     )).toEqual([]);
+  });
+
+  it("returns the first resolved linked architecture for diagram navigation", () => {
+    expect(resolvePrimaryLinkedArchitecture(
+      {
+        "unique-id": "payments-api",
+        details: {
+          "detailed-architecture": {
+            reference: "https://specs.internal/payment-service"
+          }
+        }
+      },
+      [
+        {
+          reference: "https://specs.internal/payment-service",
+          resolvedId: "payment-service-details",
+          label: "payment service",
+          resolutionStatus: "resolved"
+        }
+      ]
+    )).toEqual({
+      reference: "https://specs.internal/payment-service",
+      resolvedId: "payment-service-details",
+      label: "payment service",
+      resolutionStatus: "resolved"
+    });
   });
 });

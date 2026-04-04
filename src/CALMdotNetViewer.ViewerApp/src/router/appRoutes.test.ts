@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   architectureRoute,
+  currentDocumentFocusRoute,
   linkedArchitectureRoute,
   parseAppRoute
 } from "./appRoutes";
@@ -13,6 +14,11 @@ describe("appRoutes", () => {
 
   it("builds a linked architecture route with focus state", () => {
     expect(linkedArchitectureRoute("payments-architecture", "payment-service-details", "fraud-check"))
+      .toBe("/architectures/payments-architecture/linked/payment-service-details?focus=fraud-check");
+  });
+
+  it("builds a focus route for the currently opened linked document", () => {
+    expect(currentDocumentFocusRoute("payment-service-details", "fraud-check", "payments-architecture"))
       .toBe("/architectures/payments-architecture/linked/payment-service-details?focus=fraud-check");
   });
 

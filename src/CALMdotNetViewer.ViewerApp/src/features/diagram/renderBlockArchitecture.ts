@@ -60,8 +60,15 @@ function extractMermaidBlock(renderedTemplate: string): string {
 
 export async function renderBlockArchitecture(
   parsedArchitecture: ParsedArchitecture,
-  selectedElementId: string | null
-): Promise<{ svg: string; mermaidCode: string; warnings: string[] }> {
+  selectedElementId: string | null,
+  focusElementId: string | null,
+  linkMap?: Record<string, string>
+): Promise<{
+  svg: string;
+  mermaidCode: string;
+  warnings: string[];
+  bindFunctions?: (element: Element) => void;
+}> {
   ensureMermaid();
 
   const handlebars = createHandlebars();
@@ -74,6 +81,13 @@ export async function renderBlockArchitecture(
     "edges": "connected",
     "edge-labels": "description",
     "layout-engine": "elk",
+    ...(linkMap
+      ? {
+          "link-map": JSON.stringify(linkMap),
+          "link-prefix": "/"
+        }
+      : {}),
+    ...(focusElementId ? { "focus-nodes": focusElementId } : {}),
     ...(selectedElementId ? { "highlight-nodes": selectedElementId } : {})
   };
 
@@ -81,11 +95,12 @@ export async function renderBlockArchitecture(
   const renderedTemplate = template(viewModel);
   const mermaidCode = extractMermaidBlock(renderedTemplate);
   const renderId = `calm-dotnet-viewer-${renderSequence++}`;
-  const { svg } = await mermaid.render(renderId, mermaidCode);
+  const { svg, bindFunctions } = await mermaid.render(renderId, mermaidCode);
 
   return {
     svg,
     mermaidCode,
-    warnings: viewModel.warnings ?? []
+    warnings: viewModel.warnings ?? [],
+    bindFunctions
   };
 }

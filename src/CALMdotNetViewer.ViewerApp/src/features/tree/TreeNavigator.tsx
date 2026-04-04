@@ -3,13 +3,19 @@ import type { ParsedArchitecture } from "../architecture/types";
 interface TreeNavigatorProps {
   parsedArchitecture: ParsedArchitecture;
   selectedElementId: string | null;
+  linkedNodeIds: Set<string>;
   onSelectElement: (id: string) => void;
+  onOpenLinkedArchitecture: (linkedId: string) => void;
+  resolveLinkedArchitectureId: (nodeId: string) => string | null;
 }
 
 export function TreeNavigator({
   parsedArchitecture,
   selectedElementId,
-  onSelectElement
+  linkedNodeIds,
+  onSelectElement,
+  onOpenLinkedArchitecture,
+  resolveLinkedArchitectureId
 }: TreeNavigatorProps) {
   return (
     <aside className="panel">
@@ -25,10 +31,21 @@ export function TreeNavigator({
             <li key={node.id}>
               <button
                 className={`tree-item${selectedElementId === node.id ? " is-selected" : ""}`}
-                onClick={() => onSelectElement(node.id)}
+                onClick={() => {
+                  const linkedArchitectureId = resolveLinkedArchitectureId(node.id);
+                  if (linkedArchitectureId) {
+                    onOpenLinkedArchitecture(linkedArchitectureId);
+                    return;
+                  }
+
+                  onSelectElement(node.id);
+                }}
                 type="button"
               >
-                <span>{node.label}</span>
+                <span>
+                  {node.label}
+                  {linkedNodeIds.has(node.id) ? " (linked)" : ""}
+                </span>
                 <small>{node.type}</small>
               </button>
             </li>

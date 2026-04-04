@@ -9,6 +9,7 @@ import { useViewerStore } from "../../store/viewerStore";
 import { DetailsPanel } from "../details/DetailsPanel";
 import { DiagramViewer } from "../diagram/DiagramViewer";
 import { TreeNavigator } from "../tree/TreeNavigator";
+import { resolvePrimaryLinkedArchitecture } from "./linkedArchitectureReferences";
 import { parseArchitecture } from "./parseArchitecture";
 import type { ArchitectureSummary } from "./types";
 import {
@@ -31,6 +32,7 @@ export function ArchitectureWorkspace() {
   } = useViewerStore();
   const [architectures, setArchitectures] = useState<ArchitectureSummary[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [focusElementId, setFocusElementId] = useState<string | null>(null);
   const [navigationParent, setNavigationParent] = useState<{
     id: string;
     title: string;
@@ -72,8 +74,12 @@ export function ArchitectureWorkspace() {
         }
 
         const parsed = parseArchitecture(loadedArchitecture.content);
-        const preferredSelection = targetRoute?.focus ?? parsed.nodes[0]?.id ?? null;
+        const resolvedFocus = targetRoute?.focus && parsed.nodes.some((node) => node.id === targetRoute.focus)
+          ? targetRoute.focus
+          : null;
+        const preferredSelection = resolvedFocus ?? parsed.nodes[0]?.id ?? null;
         setArchitecture(loadedArchitecture, parsed, preferredSelection);
+        setFocusElementId(resolvedFocus);
         setNavigationParent(targetRoute?.kind === "linked"
           ? {
               id: targetRoute.parentArchitectureId,
@@ -85,8 +91,8 @@ export function ArchitectureWorkspace() {
         setNotice(null);
 
         const route = targetRoute?.kind === "linked"
-          ? linkedArchitectureRoute(targetRoute.parentArchitectureId, loadedArchitecture.id, preferredSelection)
-          : architectureRoute(loadedArchitecture.id, preferredSelection);
+          ? linkedArchitectureRoute(targetRoute.parentArchitectureId, loadedArchitecture.id, resolvedFocus)
+          : architectureRoute(loadedArchitecture.id, resolvedFocus);
 
         if (options?.historyMode === "push") {
           window.history.pushState(null, "", route);
@@ -164,7 +170,13 @@ export function ArchitectureWorkspace() {
 
   function handleSelectElement(id: string) {
     setSelectedElementId(id);
+    setFocusElementId(id);
     updateSelectionRoute(id);
+  }
+
+  function handleClearFocus() {
+    setFocusElementId(null);
+    updateSelectionRoute(null);
   }
 
   async function handleArchitectureChange(event: ChangeEvent<HTMLSelectElement>) {
@@ -180,9 +192,10 @@ export function ArchitectureWorkspace() {
       const parsed = parseArchitecture(loadedArchitecture.content);
       const selectedId = parsed.nodes[0]?.id ?? null;
       setArchitecture(loadedArchitecture, parsed, selectedId);
+      setFocusElementId(null);
       setNavigationParent(null);
       setNotice(null);
-      window.history.pushState(null, "", architectureRoute(loadedArchitecture.id, selectedId));
+      window.history.pushState(null, "", architectureRoute(loadedArchitecture.id));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
@@ -221,9 +234,10 @@ export function ArchitectureWorkspace() {
       const parsed = parseArchitecture(createdArchitecture.content);
       const selectedId = parsed.nodes[0]?.id ?? null;
       setArchitecture(createdArchitecture, parsed, selectedId);
+      setFocusElementId(null);
       setNavigationParent(null);
       setNotice(formatValidationNotice(validation) ?? `Loaded ${file.name} successfully.`);
-      window.history.pushState(null, "", architectureRoute(createdArchitecture.id, selectedId));
+      window.history.pushState(null, "", architectureRoute(createdArchitecture.id));
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : String(uploadError));
       setNotice(null);
@@ -245,13 +259,14 @@ export function ArchitectureWorkspace() {
       const selectedId = parsed.nodes[0]?.id ?? null;
 
       setArchitecture(linkedArchitecture, parsed, selectedId);
+      setFocusElementId(null);
       setNavigationParent({
         id: architecture.id,
         title: architecture.title,
-        focusElementId: selectedElementId
+        focusElementId
       });
       setNotice(`Opened linked architecture ${linkedArchitecture.title}.`);
-      window.history.pushState(null, "", linkedArchitectureRoute(architecture.id, linkedArchitecture.id, selectedId));
+      window.history.pushState(null, "", linkedArchitectureRoute(architecture.id, linkedArchitecture.id));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
@@ -272,14 +287,36 @@ export function ArchitectureWorkspace() {
       const selectedId = navigationParent.focusElementId ?? parsed.nodes[0]?.id ?? null;
 
       setArchitecture(parentArchitecture, parsed, selectedId);
+      setFocusElementId(navigationParent.focusElementId);
       setNavigationParent(null);
       setNotice(`Returned to ${parentArchitecture.title}.`);
-      window.history.pushState(null, "", architectureRoute(parentArchitecture.id, selectedId));
+      window.history.pushState(null, "", architectureRoute(parentArchitecture.id, navigationParent.focusElementId));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
       setLoading(false);
     }
+  }
+
+  const linkedNodeIds = new Set(
+    architecture && parsedArchitecture
+      ? parsedArchitecture.nodes
+          .filter((node) =>
+            Boolean(resolvePrimaryLinkedArchitecture(parsedArchitecture.nodeLookup[node.id], architecture.linkedArchitectures)?.resolvedId)
+          )
+          .map((node) => node.id)
+      : []
+  );
+
+  function resolveLinkedArchitectureId(nodeId: string): string | null {
+    if (!architecture || !parsedArchitecture) {
+      return null;
+    }
+
+    return resolvePrimaryLinkedArchitecture(
+      parsedArchitecture.nodeLookup[nodeId],
+      architecture.linkedArchitectures
+    )?.resolvedId ?? null;
   }
 
   return (
@@ -339,12 +376,17 @@ export function ArchitectureWorkspace() {
           <TreeNavigator
             parsedArchitecture={parsedArchitecture}
             selectedElementId={selectedElementId}
+            linkedNodeIds={linkedNodeIds}
             onSelectElement={handleSelectElement}
+            onOpenLinkedArchitecture={handleOpenLinkedArchitecture}
+            resolveLinkedArchitectureId={resolveLinkedArchitectureId}
           />
           <DiagramViewer
             parsedArchitecture={parsedArchitecture}
             selectedElementId={selectedElementId}
+            focusElementId={focusElementId}
             onSelectElement={handleSelectElement}
+            onClearFocus={handleClearFocus}
           />
           <DetailsPanel
             architecture={architecture}

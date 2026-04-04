@@ -44,3 +44,10 @@ export function resolveSelectedNodeLinkedArchitectures(
     .map((reference) => linkedArchitectures.find((linkedArchitecture) => linkedArchitecture.reference === reference) ?? null)
     .filter((reference): reference is ArchitectureReference => reference !== null);
 }
+
+export function resolvePrimaryLinkedArchitecture(
+  selectedNodeRaw: unknown,
+  linkedArchitectures: ArchitectureReference[]
+): ArchitectureReference | null {
+  return resolveSelectedNodeLinkedArchitectures(selectedNodeRaw, linkedArchitectures)[0] ?? null;
+}
