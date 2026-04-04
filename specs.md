@@ -497,8 +497,8 @@ Treat .NET as the application host and system boundary, not as the mandatory imp
 
 The recommended solution structure is:
 
-- `dotnet/CALMdotNetViewer.Web` for the ASP.NET Core host and API
-- `dotnet/CALMdotNetViewer.ViewerApp` for the TypeScript frontend
+- `dotnet/src/CALMdotNetViewer.Web` for the ASP.NET Core host and API
+- `dotnet/src/CALMdotNetViewer.ViewerApp` for the TypeScript frontend
 - `dotnet/docs` for product and technical design notes if the scope grows
 
 The .NET project should own hosting, storage, API contracts, and operational concerns.
