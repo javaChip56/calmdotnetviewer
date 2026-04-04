@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag points to main
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/CALMdotNetViewer.ViewerApp/package-lock.json
+
+      - name: Restore .NET dependencies
+        run: dotnet restore src/CALMdotNetViewer.sln
+
+      - name: Install frontend dependencies
+        working-directory: src/CALMdotNetViewer.ViewerApp
+        run: npm ci
+
+      - name: Build and test .NET
+        run: |
+          dotnet build src/CALMdotNetViewer.sln --configuration Release --no-restore
+          dotnet test src/CALMdotNetViewer.sln --configuration Release --no-build
+
+      - name: Test and build frontend
+        working-directory: src/CALMdotNetViewer.ViewerApp
+        run: |
+          npm test
+          npm run build
+
+      - name: Publish web app
+        run: dotnet publish src/CALMdotNetViewer.Web/CALMdotNetViewer.Web.csproj --configuration Release --output ./artifacts/CALMdotNetViewer.Web
+
+      - name: Package release artifacts
+        run: |
+          mkdir -p artifacts/packages
+          cp -r src/CALMdotNetViewer.ViewerApp/dist artifacts/CALMdotNetViewer.ViewerApp
+          tar -czf artifacts/packages/CALMdotNetViewer.Web-${GITHUB_REF_NAME}.tar.gz -C artifacts CALMdotNetViewer.Web
+          tar -czf artifacts/packages/CALMdotNetViewer.ViewerApp-${GITHUB_REF_NAME}.tar.gz -C artifacts CALMdotNetViewer.ViewerApp
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/packages/CALMdotNetViewer.Web-${{ github.ref_name }}.tar.gz
+            artifacts/packages/CALMdotNetViewer.ViewerApp-${{ github.ref_name }}.tar.gz

@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CALMdotNetViewer.Web", "CALMdotNetViewer.Web\CALMdotNetViewer.Web.csproj", "{2F97B898-DFD1-4C0C-965F-E430EED33D23}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CALMdotNetViewer.Web.Tests", "CALMdotNetViewer.Web.Tests\CALMdotNetViewer.Web.Tests.csproj", "{B0C266D8-063C-4837-9056-E2B3E9FFD5D4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{2F97B898-DFD1-4C0C-965F-E430EED33D23}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2F97B898-DFD1-4C0C-965F-E430EED33D23}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2F97B898-DFD1-4C0C-965F-E430EED33D23}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B0C266D8-063C-4837-9056-E2B3E9FFD5D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B0C266D8-063C-4837-9056-E2B3E9FFD5D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B0C266D8-063C-4837-9056-E2B3E9FFD5D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B0C266D8-063C-4837-9056-E2B3E9FFD5D4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
