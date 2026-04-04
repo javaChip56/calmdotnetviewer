@@ -23,6 +23,31 @@ export class ArchitectureApiClient {
     return response.json();
   }
 
+  async createArchitecture(
+    fileName: string,
+    content: string,
+    contentType = "application/json"
+  ): Promise<ArchitectureDocument> {
+    const response = await fetch("/api/architectures", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        fileName,
+        content,
+        contentType
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create architecture: ${response.status} ${errorText}`);
+    }
+
+    return response.json();
+  }
+
   async validateArchitecture(content: string, fileName = "uploaded-architecture.json"): Promise<ValidationResult> {
     const response = await fetch("/api/architectures/validate", {
       method: "POST",

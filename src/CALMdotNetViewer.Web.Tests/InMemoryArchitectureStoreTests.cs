@@ -38,6 +38,33 @@ public sealed class InMemoryArchitectureStoreTests
     }
 
     [Fact]
+    public async Task CreateAsyncStoresUploadedArchitectureAndReturnsItInSummaries()
+    {
+        using var testFolder = new TemporaryArchitectureFolder();
+        var store = CreateStore(testFolder.RootPath, "SampleData");
+
+        var created = await store.CreateAsync(
+            new UploadArchitectureRequest(
+                "uploaded-architecture.json",
+                """
+                {
+                  "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+                  "metadata": { "title": "Uploaded Architecture" },
+                  "nodes": [
+                    { "unique-id": "uploaded-service", "node-type": "service", "name": "Uploaded Service" }
+                  ],
+                  "relationships": []
+                }
+                """),
+            CancellationToken.None);
+
+        var summaries = await store.GetSummariesAsync(CancellationToken.None);
+
+        Assert.Equal("Uploaded Architecture", created.Title);
+        Assert.Contains(summaries, summary => summary.Id == created.Id && summary.Title == "Uploaded Architecture");
+    }
+
+    [Fact]
     public void ThrowsWhenConfiguredFolderDoesNotExist()
     {
         using var testFolder = new TemporaryArchitectureFolder();
