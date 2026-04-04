@@ -146,6 +146,32 @@ button {
   margin-bottom: 20px;
 }
 
+.diagram-canvas {
+  border: 1px solid #dbe5f0;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  padding: 10px;
+  overflow: auto;
+  min-height: 340px;
+}
+
+.diagram-canvas svg {
+  width: 100%;
+  height: auto;
+  min-width: 680px;
+}
+
+.diagram-node-picker {
+  margin-top: 18px;
+}
+
+.diagram-node-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .diagram-node {
   display: flex;
   flex-direction: column;
@@ -153,6 +179,13 @@ button {
 }
 
 .diagram-relationships {
+  border-top: 1px solid #e3ebf4;
+  padding-top: 16px;
+  margin-top: 18px;
+}
+
+.diagram-warnings {
+  margin-top: 18px;
   border-top: 1px solid #e3ebf4;
   padding-top: 16px;
 }

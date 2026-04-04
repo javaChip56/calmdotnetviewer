@@ -1,3 +1,5 @@
+import type { CalmCoreCanonicalModel } from "@finos/calm-models/canonical";
+
 export interface ArchitectureReference {
   reference: string;
   resolvedId: string | null;
@@ -60,4 +62,7 @@ export interface ParsedArchitecture {
   nodes: GraphNode[];
   edges: GraphEdge[];
   raw: unknown;
+  canonicalModel: CalmCoreCanonicalModel;
+  nodeLookup: Record<string, unknown>;
+  relationshipLookup: Record<string, unknown>;
 }

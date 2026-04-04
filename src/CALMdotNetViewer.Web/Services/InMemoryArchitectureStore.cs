@@ -2,6 +2,8 @@ using System.Text;
 using System.Text.Json;
 using CALMdotNetViewer.Web.Contracts;
 using CALMdotNetViewer.Web.Models;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 namespace CALMdotNetViewer.Web.Services;
 
@@ -10,8 +12,15 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
     private readonly Dictionary<string, ArchitectureDocument> documents = new(StringComparer.OrdinalIgnoreCase);
     private readonly object gate = new();
 
-    public InMemoryArchitectureStore()
+    private readonly string sampleDataPath;
+
+    public InMemoryArchitectureStore(
+        IHostEnvironment hostEnvironment,
+        IOptions<ArchitectureSourceOptions> architectureSourceOptions)
     {
+        sampleDataPath = ResolveFolderPath(
+            hostEnvironment.ContentRootPath,
+            architectureSourceOptions.Value.FolderPath);
         SeedDocuments();
     }
 
@@ -281,95 +290,38 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
         return $"{slug}-{suffix}";
     }
 
+    private static string ResolveFolderPath(string contentRootPath, string configuredFolderPath)
+    {
+        if (string.IsNullOrWhiteSpace(configuredFolderPath))
+        {
+            configuredFolderPath = "SampleData";
+        }
+
+        return Path.IsPathRooted(configuredFolderPath)
+            ? configuredFolderPath
+            : Path.GetFullPath(Path.Combine(contentRootPath, configuredFolderPath));
+    }
+
     private void SeedDocuments()
     {
         var now = DateTimeOffset.UtcNow;
-        const string paymentsArchitecture = """
-        {
-          "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
-          "metadata": { "title": "Payments Architecture" },
-          "nodes": [
-            { "unique-id": "channel-ui", "node-type": "webclient", "name": "Channel UI" },
-            {
-              "unique-id": "payments-api",
-              "node-type": "service",
-              "name": "Payments API",
-              "details": {
-                "detailed-architecture": {
-                  "reference": "https://specs.internal/payment-service"
-                }
-              }
-            },
-            { "unique-id": "payments-db", "node-type": "database", "name": "Payments DB" }
-          ],
-          "relationships": [
-            {
-              "unique-id": "ui-calls-api",
-              "relationship-type": {
-                "connects": {
-                  "source": { "node": "channel-ui" },
-                  "destination": { "node": "payments-api" }
-                }
-              },
-              "description": "Calls payments API"
-            },
-            {
-              "unique-id": "api-uses-db",
-              "relationship-type": {
-                "connects": {
-                  "source": { "node": "payments-api" },
-                  "destination": { "node": "payments-db" }
-                }
-              },
-              "description": "Reads and writes payment records"
-            }
-          ],
-          "flows": [
-            {
-              "unique-id": "payment-request",
-              "source": "channel-ui",
-              "target": "payments-api",
-              "description": "Customer submits payment"
-            }
-          ]
-        }
-        """;
 
-        const string paymentServiceDetails = """
+        if (!Directory.Exists(sampleDataPath))
         {
-          "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
-          "metadata": { "title": "Payment Service Details" },
-          "nodes": [
-            { "unique-id": "payment-orchestrator", "node-type": "service", "name": "Payment Orchestrator" },
-            { "unique-id": "fraud-check", "node-type": "service", "name": "Fraud Check" },
-            { "unique-id": "ledger", "node-type": "database", "name": "Ledger" }
-          ],
-          "relationships": [
-            {
-              "unique-id": "orchestrator-to-fraud",
-              "relationship-type": {
-                "connects": {
-                  "source": { "node": "payment-orchestrator" },
-                  "destination": { "node": "fraud-check" }
-                }
-              },
-              "description": "Requests a fraud decision"
-            },
-            {
-              "unique-id": "orchestrator-to-ledger",
-              "relationship-type": {
-                "connects": {
-                  "source": { "node": "payment-orchestrator" },
-                  "destination": { "node": "ledger" }
-                }
-              },
-              "description": "Persists transaction state"
-            }
-          ]
+            throw new DirectoryNotFoundException(
+                $"Configured architecture source folder was not found: {sampleDataPath}");
         }
-        """;
 
-        documents["payments-architecture"] = BuildDocument("payments-architecture", "payments-architecture.json", paymentsArchitecture, now);
-        documents["payment-service-details"] = BuildDocument("payment-service-details", "payment-service-details.json", paymentServiceDetails, now);
+        var sampleFiles = new[]
+        {
+            ("payments-architecture", "payments-architecture.json"),
+            ("payment-service-details", "payment-service-details.json")
+        };
+
+        foreach (var (id, fileName) in sampleFiles)
+        {
+            var content = File.ReadAllText(Path.Combine(sampleDataPath, fileName));
+            documents[id] = BuildDocument(id, fileName, content, now);
+        }
     }
 }

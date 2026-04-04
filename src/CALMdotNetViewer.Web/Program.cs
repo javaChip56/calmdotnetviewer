@@ -1,8 +1,11 @@
+using CALMdotNetViewer.Web.Models;
 using CALMdotNetViewer.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.Configure<ArchitectureSourceOptions>(
+    builder.Configuration.GetSection(ArchitectureSourceOptions.SectionName));
 builder.Services.AddSingleton<IArchitectureStore, InMemoryArchitectureStore>();
 
 var app = builder.Build();

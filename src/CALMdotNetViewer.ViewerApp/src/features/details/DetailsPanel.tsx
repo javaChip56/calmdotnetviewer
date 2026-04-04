@@ -7,6 +7,7 @@ interface DetailsPanelProps {
 
 export function DetailsPanel({ parsedArchitecture, selectedElementId }: DetailsPanelProps) {
   const selectedNode = parsedArchitecture.nodes.find((node) => node.id === selectedElementId) ?? null;
+  const selectedNodeRaw = selectedNode ? parsedArchitecture.nodeLookup[selectedNode.id] : parsedArchitecture.raw;
 
   return (
     <aside className="panel">
@@ -32,7 +33,7 @@ export function DetailsPanel({ parsedArchitecture, selectedElementId }: DetailsP
 
       <div className="details-raw">
         <h3>Raw JSON</h3>
-        <pre>{JSON.stringify(parsedArchitecture.raw, null, 2)}</pre>
+        <pre>{JSON.stringify(selectedNodeRaw, null, 2)}</pre>
       </div>
     </aside>
   );
