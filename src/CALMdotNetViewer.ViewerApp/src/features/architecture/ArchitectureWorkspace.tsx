@@ -1,5 +1,10 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { architectureApiClient } from "../../api/architectureApiClient";
+import {
+  architectureRoute,
+  linkedArchitectureRoute,
+  parseAppRoute
+} from "../../router/appRoutes";
 import { useViewerStore } from "../../store/viewerStore";
 import { DetailsPanel } from "../details/DetailsPanel";
 import { DiagramViewer } from "../diagram/DiagramViewer";
@@ -26,33 +31,68 @@ export function ArchitectureWorkspace() {
   } = useViewerStore();
   const [architectures, setArchitectures] = useState<ArchitectureSummary[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [navigationParent, setNavigationParent] = useState<{
+    id: string;
+    title: string;
+    focusElementId: string | null;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function initializeWorkspace() {
+    async function loadArchitectureIntoWorkspace(
+      availableArchitectures: ArchitectureSummary[],
+      options?: {
+        targetRoute?: ReturnType<typeof parseAppRoute>;
+        historyMode?: "push" | "replace" | "none";
+      }
+    ) {
+      const targetRoute = options?.targetRoute ?? parseAppRoute(window.location.pathname, window.location.search);
+
       try {
         setLoading(true);
         setError(null);
-        const availableArchitectures = await architectureApiClient.getArchitectures();
         if (cancelled) {
           return;
         }
 
         setArchitectures(availableArchitectures);
-        const initialArchitectureId = selectInitialArchitectureId(availableArchitectures);
+        const initialArchitectureId = targetRoute?.architectureId ?? selectInitialArchitectureId(availableArchitectures);
         if (!initialArchitectureId) {
+          setNavigationParent(null);
           setNotice("No architectures are currently available. Upload a CALM JSON file to get started.");
           return;
         }
 
-        const loadedArchitecture = await architectureApiClient.getArchitecture(initialArchitectureId);
+        const loadedArchitecture = targetRoute?.kind === "linked"
+          ? await architectureApiClient.getLinkedArchitecture(targetRoute.parentArchitectureId, targetRoute.architectureId)
+          : await architectureApiClient.getArchitecture(initialArchitectureId);
         if (cancelled) {
           return;
         }
 
-        setArchitecture(loadedArchitecture, parseArchitecture(loadedArchitecture.content));
+        const parsed = parseArchitecture(loadedArchitecture.content);
+        const preferredSelection = targetRoute?.focus ?? parsed.nodes[0]?.id ?? null;
+        setArchitecture(loadedArchitecture, parsed, preferredSelection);
+        setNavigationParent(targetRoute?.kind === "linked"
+          ? {
+              id: targetRoute.parentArchitectureId,
+              title: availableArchitectures.find((summary) => summary.id === targetRoute.parentArchitectureId)?.title
+                ?? targetRoute.parentArchitectureId,
+              focusElementId: null
+            }
+          : null);
         setNotice(null);
+
+        const route = targetRoute?.kind === "linked"
+          ? linkedArchitectureRoute(targetRoute.parentArchitectureId, loadedArchitecture.id, preferredSelection)
+          : architectureRoute(loadedArchitecture.id, preferredSelection);
+
+        if (options?.historyMode === "push") {
+          window.history.pushState(null, "", route);
+        } else if (options?.historyMode !== "none") {
+          window.history.replaceState(null, "", route);
+        }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -64,12 +104,68 @@ export function ArchitectureWorkspace() {
       }
     }
 
+    async function initializeWorkspace() {
+      try {
+        const availableArchitectures = await architectureApiClient.getArchitectures();
+        if (cancelled) {
+          return;
+        }
+
+        await loadArchitectureIntoWorkspace(availableArchitectures);
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : String(loadError));
+          setLoading(false);
+        }
+      }
+    }
+
+    function handlePopState() {
+      void (async () => {
+        try {
+          const availableArchitectures = await architectureApiClient.getArchitectures();
+          if (cancelled) {
+            return;
+          }
+
+          await loadArchitectureIntoWorkspace(availableArchitectures, {
+            targetRoute: parseAppRoute(window.location.pathname, window.location.search),
+            historyMode: "none"
+          });
+        } catch (loadError) {
+          if (!cancelled) {
+            setError(loadError instanceof Error ? loadError.message : String(loadError));
+            setLoading(false);
+          }
+        }
+      })();
+    }
+
+    window.addEventListener("popstate", handlePopState);
     void initializeWorkspace();
 
     return () => {
       cancelled = true;
+      window.removeEventListener("popstate", handlePopState);
     };
   }, [setArchitecture, setError, setLoading]);
+
+  function updateSelectionRoute(nextSelectedElementId: string | null) {
+    if (!architecture) {
+      return;
+    }
+
+    const route = navigationParent
+      ? linkedArchitectureRoute(navigationParent.id, architecture.id, nextSelectedElementId)
+      : architectureRoute(architecture.id, nextSelectedElementId);
+
+    window.history.replaceState(null, "", route);
+  }
+
+  function handleSelectElement(id: string) {
+    setSelectedElementId(id);
+    updateSelectionRoute(id);
+  }
 
   async function handleArchitectureChange(event: ChangeEvent<HTMLSelectElement>) {
     const architectureId = event.target.value;
@@ -81,8 +177,12 @@ export function ArchitectureWorkspace() {
       setLoading(true);
       setError(null);
       const loadedArchitecture = await architectureApiClient.getArchitecture(architectureId);
-      setArchitecture(loadedArchitecture, parseArchitecture(loadedArchitecture.content));
+      const parsed = parseArchitecture(loadedArchitecture.content);
+      const selectedId = parsed.nodes[0]?.id ?? null;
+      setArchitecture(loadedArchitecture, parsed, selectedId);
+      setNavigationParent(null);
       setNotice(null);
+      window.history.pushState(null, "", architectureRoute(loadedArchitecture.id, selectedId));
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
@@ -118,11 +218,65 @@ export function ArchitectureWorkspace() {
       const availableArchitectures = await architectureApiClient.getArchitectures();
 
       setArchitectures(availableArchitectures);
-      setArchitecture(createdArchitecture, parseArchitecture(createdArchitecture.content));
+      const parsed = parseArchitecture(createdArchitecture.content);
+      const selectedId = parsed.nodes[0]?.id ?? null;
+      setArchitecture(createdArchitecture, parsed, selectedId);
+      setNavigationParent(null);
       setNotice(formatValidationNotice(validation) ?? `Loaded ${file.name} successfully.`);
+      window.history.pushState(null, "", architectureRoute(createdArchitecture.id, selectedId));
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : String(uploadError));
       setNotice(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleOpenLinkedArchitecture(linkedId: string) {
+    if (!architecture) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const linkedArchitecture = await architectureApiClient.getLinkedArchitecture(architecture.id, linkedId);
+      const parsed = parseArchitecture(linkedArchitecture.content);
+      const selectedId = parsed.nodes[0]?.id ?? null;
+
+      setArchitecture(linkedArchitecture, parsed, selectedId);
+      setNavigationParent({
+        id: architecture.id,
+        title: architecture.title,
+        focusElementId: selectedElementId
+      });
+      setNotice(`Opened linked architecture ${linkedArchitecture.title}.`);
+      window.history.pushState(null, "", linkedArchitectureRoute(architecture.id, linkedArchitecture.id, selectedId));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : String(loadError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleReturnToParent() {
+    if (!navigationParent) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const parentArchitecture = await architectureApiClient.getArchitecture(navigationParent.id);
+      const parsed = parseArchitecture(parentArchitecture.content);
+      const selectedId = navigationParent.focusElementId ?? parsed.nodes[0]?.id ?? null;
+
+      setArchitecture(parentArchitecture, parsed, selectedId);
+      setNavigationParent(null);
+      setNotice(`Returned to ${parentArchitecture.title}.`);
+      window.history.pushState(null, "", architectureRoute(parentArchitecture.id, selectedId));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : String(loadError));
     } finally {
       setLoading(false);
     }
@@ -185,17 +339,20 @@ export function ArchitectureWorkspace() {
           <TreeNavigator
             parsedArchitecture={parsedArchitecture}
             selectedElementId={selectedElementId}
-            onSelectElement={setSelectedElementId}
+            onSelectElement={handleSelectElement}
           />
           <DiagramViewer
             parsedArchitecture={parsedArchitecture}
             selectedElementId={selectedElementId}
-            onSelectElement={setSelectedElementId}
+            onSelectElement={handleSelectElement}
           />
           <DetailsPanel
             architecture={architecture}
             parsedArchitecture={parsedArchitecture}
             selectedElementId={selectedElementId}
+            navigationParent={navigationParent}
+            onOpenLinkedArchitecture={handleOpenLinkedArchitecture}
+            onReturnToParent={handleReturnToParent}
           />
         </main>
       ) : (

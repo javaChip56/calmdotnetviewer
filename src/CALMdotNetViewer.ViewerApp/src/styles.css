@@ -256,6 +256,15 @@ button {
   margin: 0 0 8px;
 }
 
+.inline-link-button {
+  border: 0;
+  background: none;
+  color: #2c75c7;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
 .details-content dt {
   font-weight: 700;
 }
@@ -266,6 +275,54 @@ button {
 
 .details-raw {
   margin-top: 20px;
+}
+
+.details-linked {
+  margin-top: 20px;
+  border-top: 1px solid #e3ebf4;
+  padding-top: 16px;
+}
+
+.details-linked-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.details-linked-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid #dbe5f0;
+  border-radius: 14px;
+  background: #f8fbff;
+  padding: 12px;
+}
+
+.details-linked-list p {
+  margin: 6px 0 0;
+  color: #5d738d;
+  word-break: break-word;
+}
+
+.details-linked-list button {
+  border: 1px solid #2c75c7;
+  border-radius: 10px;
+  background: #2c75c7;
+  color: #ffffff;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.details-linked-list button:disabled {
+  border-color: #c7d5e5;
+  background: #e8eef5;
+  color: #6e8095;
+  cursor: not-allowed;
 }
 
 .details-raw pre {

@@ -7,7 +7,11 @@ interface ViewerStore {
   selectedElementId: string | null;
   isLoading: boolean;
   error: string | null;
-  setArchitecture: (architecture: ArchitectureDocument, parsedArchitecture: ParsedArchitecture) => void;
+  setArchitecture: (
+    architecture: ArchitectureDocument,
+    parsedArchitecture: ParsedArchitecture,
+    preferredSelectedElementId?: string | null
+  ) => void;
   setSelectedElementId: (id: string | null) => void;
   setLoading: (value: boolean) => void;
   setError: (message: string | null) => void;
@@ -19,11 +23,11 @@ export const useViewerStore = create<ViewerStore>((set) => ({
   selectedElementId: null,
   isLoading: false,
   error: null,
-  setArchitecture: (architecture, parsedArchitecture) =>
+  setArchitecture: (architecture, parsedArchitecture, preferredSelectedElementId) =>
     set({
       architecture,
       parsedArchitecture,
-      selectedElementId: parsedArchitecture.nodes[0]?.id ?? null,
+      selectedElementId: preferredSelectedElementId ?? parsedArchitecture.nodes[0]?.id ?? null,
       error: null
     }),
   setSelectedElementId: (id) => set({ selectedElementId: id }),

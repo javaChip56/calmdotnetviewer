@@ -23,6 +23,15 @@ export class ArchitectureApiClient {
     return response.json();
   }
 
+  async getLinkedArchitecture(parentId: string, linkedId: string): Promise<ArchitectureDocument> {
+    const response = await fetch(`/api/architectures/${parentId}/linked/${linkedId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to load linked architecture '${linkedId}' from '${parentId}': ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   async createArchitecture(
     fileName: string,
     content: string,
