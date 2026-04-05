@@ -50,29 +50,37 @@ This section tracks what is currently built in the repository versus what remain
 
 - ASP.NET Core host application scaffold in `dotnet/src/CALMdotNetViewer.Web`
 - TypeScript viewer application scaffold in `dotnet/src/CALMdotNetViewer.ViewerApp`
-- Backend API endpoints for loading sample architectures, validation, and linked-architecture lookup
-- Sample architecture loading from a configurable folder via `ArchitectureSource:FolderPath` in appsettings
-- Real sample CALM JSON documents stored on disk and copied into the web app output
+- Backend API endpoints for architecture listing, refresh, upload, validation, and linked-architecture lookup
+- Architecture loading from a configurable folder via `ArchitectureSource:FolderPath` in appsettings
+- Recursive auto-discovery of CALM JSON files from the configured folder
+- Real CALM JSON documents stored on disk and loaded at runtime from the configured source folder
 - Frontend integration with CALM TypeScript packages for parsing and canonical model generation
 - Frontend integration with `calm-widgets` and Mermaid for actual CALM diagram rendering
-- Tree navigation and details panel for selecting and inspecting architecture elements
-- Solution-level backend and frontend test coverage for the current scaffold
+- Full architecture overview plus focused previews for nodes, relationships, and flows
+- Tree navigation with collapsible `Nodes`, `Relationships`, and `Flows` sections
+- Left-panel search across nodes, relationships, and flows
+- Details panel for inspecting overview, metadata, linked architectures, and raw JSON
+- Diagram interaction including click-through focus, pan, zoom, fit, reset, and export to SVG or PNG
+- Route-based navigation for architecture, linked architecture, and focused selection state
+- Upload flow for local CALM JSON files into the current session
+- Refresh-from-disk flow without restarting the app
+- Linked-architecture navigation with return-to-parent support
+- Solution-level backend and frontend test coverage for the current implementation
 - GitHub workflows for CI, CodeQL-based code review, and tag-triggered release publishing
 
 ### Partially Implemented
 
-- Architecture loading currently supports server-hosted sample files, but not user upload or persisted document libraries yet
-- Diagram rendering is using the real CALM pipeline, but click handling from the rendered SVG back into selection state is still limited
-- Linked architecture support exists through backend sample data and API routes, but deeper navigation flows in the frontend still need refinement
-- Validation exists as an API capability, but the end-user validation experience in the UI is still minimal
+- Uploaded architectures are currently session-scoped in-memory documents rather than persisted files or database records
+- Validation exists as an API capability and upload guard, but the end-user validation experience in the UI is still minimal
+- The viewer has strong CALM preview parity, but some visual styling differences from the VS Code preview remain
+- Release hardening is still pending for bundle size optimization and dependency cleanup
 
 ### Planned Next
 
-- Upload and open arbitrary CALM JSON files through the web UI
-- Improve focused navigation across nodes, relationships, flows, and linked architectures
-- Add richer diagram interaction, including direct selection from rendered diagram elements
-- Expand persistence beyond sample files to support stored architecture collections
-- Harden the frontend bundle, dependency posture, and production readiness
+- Persist uploaded documents beyond the current in-memory session model
+- Expand browsing and document-library management beyond the current dropdown-based document picker
+- Improve validation UX with clearer warnings, errors, and renderability feedback
+- Optimize the frontend bundle and dependency posture for production use
 
 ## Primary Users
 
@@ -114,6 +122,7 @@ A user who needs to move through architecture levels to understand dependencies,
 
 - The system shall allow a user to upload a CALM architecture JSON document.
 - The system shall allow a user to open a previously stored architecture document.
+- The system shall allow a user to refresh the discovered document list from the configured source folder without restarting the application.
 - The system shall parse the uploaded or stored document into a renderable internal model.
 - The system shall report when a document cannot be parsed or is not renderable.
 
@@ -130,6 +139,7 @@ A user who needs to move through architecture levels to understand dependencies,
 - The system shall allow a user to select a node, relationship, or flow from a navigation tree.
 - The system shall display details for the selected element.
 - The system shall provide access to the raw JSON or structured metadata for the selected element.
+- The system shall allow a user to search the navigation tree across nodes, relationships, and flows.
 
 ### FR-4 Navigate Architecture Levels
 
@@ -448,6 +458,7 @@ The application must allow a user to:
 
 - A user can upload a valid CALM JSON file and see it opened in the application.
 - A user can open a previously stored architecture by identifier.
+- A user can refresh the configured source folder and see newly added architecture files without restarting the application.
 - When an invalid file is uploaded, the user sees a clear error state instead of a broken or blank viewer.
 
 ### AC-2 View Diagram
@@ -460,6 +471,7 @@ The application must allow a user to:
 ### AC-3 Navigate via Tree
 
 - The user can browse nodes, relationships, and flows in a navigation tree.
+- The user can filter the navigation tree with a search term across nodes, relationships, and flows.
 - Selecting an item in the tree updates the diagram focus or selected state.
 - The selected element in the tree and the selected element in the diagram remain consistent.
 

@@ -11,7 +11,7 @@ import { DiagramViewer } from "../diagram/DiagramViewer";
 import { TreeNavigator } from "../tree/TreeNavigator";
 import { resolvePrimaryLinkedArchitecture } from "./linkedArchitectureReferences";
 import { parseArchitecture } from "./parseArchitecture";
-import type { ArchitectureSummary } from "./types";
+import type { ArchitectureDocument, ArchitectureSummary } from "./types";
 import {
   formatValidationError,
   formatValidationNotice,
@@ -30,6 +30,22 @@ function resolveFocusElementId(parsed: ReturnType<typeof parseArchitecture>, foc
   return parsed.nodes.some((node) => node.id === focus) || parsed.flows.some((flow) => flow.id === focus)
     ? focus
     : null;
+}
+
+function resolveSelectedElementId(
+  parsed: ReturnType<typeof parseArchitecture>,
+  selectedElementId: string | null
+): string | null {
+  if (!selectedElementId) {
+    return selectInitialElementId(parsed);
+  }
+
+  const exists =
+    parsed.nodes.some((node) => node.id === selectedElementId) ||
+    parsed.flows.some((flow) => flow.id === selectedElementId) ||
+    parsed.edges.some((relationship) => relationship.id === selectedElementId);
+
+  return exists ? selectedElementId : selectInitialElementId(parsed);
 }
 
 export function ArchitectureWorkspace() {
@@ -258,6 +274,82 @@ export function ArchitectureWorkspace() {
     }
   }
 
+  async function handleRefreshArchitectures() {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const refreshedArchitectures = await architectureApiClient.refreshArchitectures();
+      setArchitectures(refreshedArchitectures);
+
+      if (refreshedArchitectures.length === 0) {
+        setArchitecture(null, null, null);
+        setFocusElementId(null);
+        setNavigationParent(null);
+        setNotice("No architectures were found in the configured source folder after refresh.");
+        window.history.replaceState(null, "", "/");
+        return;
+      }
+
+      const hasCurrentArchitecture = architecture
+        ? refreshedArchitectures.some((summary) => summary.id === architecture.id)
+        : false;
+
+      if (!architecture || !hasCurrentArchitecture) {
+        const fallbackArchitectureId = selectInitialArchitectureId(refreshedArchitectures);
+        if (!fallbackArchitectureId) {
+          setNotice("No architectures were found in the configured source folder after refresh.");
+          return;
+        }
+
+        const fallbackArchitecture = await architectureApiClient.getArchitecture(fallbackArchitectureId);
+        const parsed = parseArchitecture(fallbackArchitecture.content);
+        const selectedId = selectInitialElementId(parsed);
+        setArchitecture(fallbackArchitecture, parsed, selectedId);
+        setFocusElementId(null);
+        setNavigationParent(null);
+        setNotice(hasCurrentArchitecture
+          ? "Architecture list refreshed."
+          : "The previously selected architecture is no longer available. Loaded the first available document.");
+        window.history.replaceState(null, "", architectureRoute(fallbackArchitecture.id));
+        return;
+      }
+
+      let reloadedArchitecture: ArchitectureDocument;
+      let nextNavigationParent = navigationParent;
+
+      if (navigationParent) {
+        try {
+          reloadedArchitecture = await architectureApiClient.getLinkedArchitecture(navigationParent.id, architecture.id);
+        } catch {
+          reloadedArchitecture = await architectureApiClient.getArchitecture(architecture.id);
+          nextNavigationParent = null;
+        }
+      } else {
+        reloadedArchitecture = await architectureApiClient.getArchitecture(architecture.id);
+      }
+
+      const parsed = parseArchitecture(reloadedArchitecture.content);
+      const nextSelectedElementId = resolveSelectedElementId(parsed, selectedElementId);
+      const nextFocusElementId = resolveFocusElementId(parsed, focusElementId);
+
+      setArchitecture(reloadedArchitecture, parsed, nextSelectedElementId);
+      setNavigationParent(nextNavigationParent);
+      setFocusElementId(nextFocusElementId);
+      setNotice(`Refreshed ${refreshedArchitectures.length} architecture document${refreshedArchitectures.length === 1 ? "" : "s"} from disk.`);
+
+      const route = nextNavigationParent
+        ? linkedArchitectureRoute(nextNavigationParent.id, reloadedArchitecture.id, nextFocusElementId)
+        : architectureRoute(reloadedArchitecture.id, nextFocusElementId);
+      window.history.replaceState(null, "", route);
+    } catch (refreshError) {
+      setError(refreshError instanceof Error ? refreshError.message : String(refreshError));
+      setNotice(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleOpenLinkedArchitecture(linkedId: string) {
     if (!architecture) {
       return;
@@ -331,7 +423,7 @@ export function ArchitectureWorkspace() {
           <label className="field-group">
             <span>Open architecture</span>
             <select
-              disabled={architectures.length === 0}
+              disabled={architectures.length === 0 || isLoading}
               value={architecture?.id ?? ""}
               onChange={handleArchitectureChange}
             >
@@ -346,6 +438,14 @@ export function ArchitectureWorkspace() {
               )}
             </select>
           </label>
+          <button
+            className="secondary-button workspace-action-button"
+            disabled={isLoading}
+            onClick={handleRefreshArchitectures}
+            type="button"
+          >
+            Refresh
+          </button>
           <label className="upload-button">
             <input accept=".json,application/json" onChange={handleFileUpload} type="file" />
             Upload JSON

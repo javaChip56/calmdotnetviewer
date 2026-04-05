@@ -79,6 +79,73 @@ public sealed class InMemoryArchitectureStoreTests
     }
 
     [Fact]
+    public async Task RefreshAsyncDiscoversNewFilesWithoutRestartingStore()
+    {
+        using var testFolder = new TemporaryArchitectureFolder();
+        var store = CreateStore(testFolder.RootPath, "SampleData");
+
+        File.WriteAllText(
+            Path.Combine(testFolder.RootPath, "SampleData", "merchant-console.json"),
+            """
+            {
+              "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+              "metadata": { "title": "Merchant Console" },
+              "nodes": [
+                { "unique-id": "merchant-console", "node-type": "webclient", "name": "Merchant Console" }
+              ],
+              "relationships": []
+            }
+            """);
+
+        var refreshedSummaries = await store.RefreshAsync(CancellationToken.None);
+        var discovered = await store.GetAsync("merchant-console", CancellationToken.None);
+
+        Assert.Contains(refreshedSummaries, summary => summary.Id == "merchant-console");
+        Assert.NotNull(discovered);
+        Assert.Equal("Merchant Console", discovered!.Title);
+    }
+
+    [Fact]
+    public async Task RefreshAsyncPreservesUploadedDocuments()
+    {
+        using var testFolder = new TemporaryArchitectureFolder();
+        var store = CreateStore(testFolder.RootPath, "SampleData");
+
+        var created = await store.CreateAsync(
+            new UploadArchitectureRequest(
+                "uploaded-architecture.json",
+                """
+                {
+                  "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+                  "metadata": { "title": "Uploaded Architecture" },
+                  "nodes": [
+                    { "unique-id": "uploaded-service", "node-type": "service", "name": "Uploaded Service" }
+                  ],
+                  "relationships": []
+                }
+                """),
+            CancellationToken.None);
+
+        File.WriteAllText(
+            Path.Combine(testFolder.RootPath, "SampleData", "risk-engine.json"),
+            """
+            {
+              "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+              "metadata": { "title": "Risk Engine" },
+              "nodes": [
+                { "unique-id": "risk-engine", "node-type": "service", "name": "Risk Engine" }
+              ],
+              "relationships": []
+            }
+            """);
+
+        var refreshedSummaries = await store.RefreshAsync(CancellationToken.None);
+
+        Assert.Contains(refreshedSummaries, summary => summary.Id == created.Id);
+        Assert.Contains(refreshedSummaries, summary => summary.Id == "risk-engine");
+    }
+
+    [Fact]
     public void ThrowsWhenConfiguredFolderDoesNotExist()
     {
         using var testFolder = new TemporaryArchitectureFolder();

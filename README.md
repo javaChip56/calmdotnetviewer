@@ -6,21 +6,28 @@ The current implementation includes:
 
 - An ASP.NET Core backend in `src/CALMdotNetViewer.Web`
 - A React and TypeScript viewer app in `src/CALMdotNetViewer.ViewerApp`
-- Sample CALM architecture JSON files loaded by the backend from a configurable folder
+- Vendored CALM source packages in `packages/` so the repo builds independently in CI
+- A configurable architecture source folder with recursive JSON auto-discovery
+- Upload support for ad hoc CALM JSON files
+- Full architecture, node, relationship, and flow previews using the CALM rendering pipeline
+- Diagram interaction including click-through focus, pan, zoom, fit, and export to SVG or PNG
+- Left-panel navigation with collapsible `Nodes`, `Relationships`, and `Flows` sections plus search
+- Linked-architecture navigation and refresh-from-disk without restarting the app
 - GitHub Actions workflows for CI, automated code review, and release publishing
 
 ## Repository Layout
 
 ```text
 dotnet/
-├── .github/workflows/                # GitHub CI/CD workflows
-├── src/
-│   ├── CALMdotNetViewer.sln          # Solution file
-│   ├── CALMdotNetViewer.Web/         # ASP.NET Core backend
-│   ├── CALMdotNetViewer.Web.Tests/   # xUnit backend tests
-│   └── CALMdotNetViewer.ViewerApp/   # React + TypeScript frontend
-├── specs.md                          # Product and architecture specification
-└── README.md                         # This file
+|-- .github/workflows/                # GitHub CI/CD workflows
+|-- packages/                         # Vendored CALM source packages used by the viewer
+|-- src/
+|   |-- CALMdotNetViewer.sln          # Solution file
+|   |-- CALMdotNetViewer.Web/         # ASP.NET Core backend
+|   |-- CALMdotNetViewer.Web.Tests/   # xUnit backend tests
+|   `-- CALMdotNetViewer.ViewerApp/   # React + TypeScript frontend
+|-- specs.md                          # Product and architecture specification
+`-- README.md                         # This file
 ```
 
 ## Prerequisites
@@ -71,6 +78,34 @@ The Vite dev server runs on:
 
 The frontend proxies `/api` and `/health` requests to the ASP.NET Core backend.
 
+## Current Viewer Capabilities
+
+- Open stored CALM JSON documents from the configured source folder
+- Refresh the discovered document list from disk while the app is running
+- Upload a local CALM JSON file into the current session
+- Browse the model with collapsible `Nodes`, `Relationships`, and `Flows` navigation
+- Search the left panel across nodes, relationships, and flows
+- Click the architecture overview to open focused previews
+- Inspect focused node previews with:
+  - Overview
+  - Metadata
+  - Architecture
+  - Related Nodes
+  - Interface View
+- Inspect focused relationship previews with:
+  - Overview
+  - Architecture
+  - Related Nodes
+  - Interface View
+- Inspect focused flow previews with:
+  - Overview
+  - Architecture
+  - Flow Sequence
+  - Interfaces
+- Pan, zoom, fit, and reset each diagram viewport
+- Export each viewport to SVG or PNG from its `...` menu
+- Open linked architectures and return to the parent architecture
+
 ## Build Commands
 
 ### Build backend
@@ -91,7 +126,7 @@ npm run build
 ### Run backend tests
 
 ```powershell
-dotnet test src/CALMdotNetViewer.sln
+dotnet test --configuration Release src/CALMdotNetViewer.Web.Tests/CALMdotNetViewer.Web.Tests.csproj
 ```
 
 ### Run frontend tests
@@ -120,6 +155,8 @@ Notes:
 
 - Relative paths are resolved from the ASP.NET Core content root
 - Absolute paths are supported
+- The backend auto-discovers `*.json` files recursively under this folder
+- The viewer can rescan this folder from the UI with the `Refresh` button
 - If the folder does not exist, the backend throws a clear startup error
 
 ## GitHub Workflows
@@ -196,6 +233,6 @@ The release workflow currently publishes:
 
 ## Notes
 
-- The frontend currently imports local CALM source modules from the monorepo during build
+- The frontend uses vendored CALM source packages under `dotnet/packages` so CI can build the repo independently
 - The frontend build works, but the Mermaid-based bundle is currently large and may need optimization later
 - `npm audit` currently reports high-severity vulnerabilities in the frontend dependency tree and should be reviewed separately

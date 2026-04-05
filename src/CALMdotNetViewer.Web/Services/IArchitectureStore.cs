@@ -7,6 +7,7 @@ public interface IArchitectureStore
 {
     Task<ArchitectureDocument?> GetAsync(string id, CancellationToken cancellationToken);
     Task<IReadOnlyList<ArchitectureSummaryResponse>> GetSummariesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<ArchitectureSummaryResponse>> RefreshAsync(CancellationToken cancellationToken);
     Task<ArchitectureDocument> CreateAsync(UploadArchitectureRequest request, CancellationToken cancellationToken);
     Task<IReadOnlyList<ArchitectureReference>> GetLinkedAsync(string id, CancellationToken cancellationToken);
     Task<ArchitectureDocument?> GetLinkedAsync(string id, string linkedId, CancellationToken cancellationToken);

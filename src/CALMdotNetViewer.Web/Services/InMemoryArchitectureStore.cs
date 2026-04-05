@@ -10,6 +10,8 @@ namespace CALMdotNetViewer.Web.Services;
 public sealed class InMemoryArchitectureStore : IArchitectureStore
 {
     private readonly Dictionary<string, ArchitectureDocument> documents = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SourceDocumentRecord> discoveredSources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, SourceDocumentRecord> uploadedSources = new(StringComparer.OrdinalIgnoreCase);
     private readonly object gate = new();
 
     private readonly string sampleDataPath;
@@ -21,7 +23,7 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
         sampleDataPath = ResolveFolderPath(
             hostEnvironment.ContentRootPath,
             architectureSourceOptions.Value.FolderPath);
-        SeedDocuments();
+        RefreshDiscoveredSources();
     }
 
     public Task<ArchitectureDocument?> GetAsync(string id, CancellationToken cancellationToken)
@@ -41,12 +43,18 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
 
         lock (gate)
         {
-            var summaries = documents.Values
-                .OrderByDescending(x => x.UpdatedAt)
-                .Select(x => new ArchitectureSummaryResponse(x.Id, x.Title, x.Schema, x.UpdatedAt))
-                .ToList();
+            return Task.FromResult(BuildSummariesLocked());
+        }
+    }
 
-            return Task.FromResult<IReadOnlyList<ArchitectureSummaryResponse>>(summaries);
+    public Task<IReadOnlyList<ArchitectureSummaryResponse>> RefreshAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (gate)
+        {
+            RefreshDiscoveredSourcesLocked();
+            return Task.FromResult(BuildSummariesLocked());
         }
     }
 
@@ -62,44 +70,18 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
 
         var documentId = CreateStableId(request.FileName, request.Content);
         var timestamp = DateTimeOffset.UtcNow;
-        IReadOnlyList<ArchitectureReference> linkedArchitectures;
-
-        using (var json = JsonDocument.Parse(request.Content))
-        {
-            List<(string Id, string FileName, string Content, DateTimeOffset Timestamp)> discoveredDocuments;
-
-            lock (gate)
-            {
-                discoveredDocuments = documents.Values
-                    .Select(existingDocument => (existingDocument.Id, $"{existingDocument.Id}.json", existingDocument.Content, existingDocument.UpdatedAt))
-                    .Append((documentId, request.FileName, request.Content, timestamp))
-                    .ToList();
-            }
-
-            var lookup = BuildReferenceLookup(discoveredDocuments);
-            linkedArchitectures = ExtractReferences(json.RootElement)
-                .Select(reference =>
-                {
-                    var resolvedId = ResolveReference(reference, lookup);
-                    return new ArchitectureReference(
-                        reference,
-                        resolvedId,
-                        BuildReferenceLabel(reference),
-                        resolvedId is null ? "unresolved" : "resolved");
-                })
-                .ToList();
-        }
-
-        var document = BuildDocument(
-            documentId,
-            request.FileName,
-            request.Content,
-            timestamp,
-            linkedArchitectures);
+        ArchitectureDocument document;
 
         lock (gate)
         {
-            documents[document.Id] = document;
+            uploadedSources[documentId] = new SourceDocumentRecord(
+                documentId,
+                request.FileName,
+                request.Content,
+                timestamp);
+
+            RebuildMaterializedDocumentsLocked();
+            document = documents[documentId];
         }
 
         return Task.FromResult(document);
@@ -323,7 +305,15 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
             : Path.GetFullPath(Path.Combine(contentRootPath, configuredFolderPath));
     }
 
-    private void SeedDocuments()
+    private void RefreshDiscoveredSources()
+    {
+        lock (gate)
+        {
+            RefreshDiscoveredSourcesLocked();
+        }
+    }
+
+    private void RefreshDiscoveredSourcesLocked()
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -336,8 +326,7 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
         var discoveredFiles = Directory.EnumerateFiles(sampleDataPath, "*.json", SearchOption.AllDirectories)
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToList();
-
-        var discoveredDocuments = new List<(string Id, string FileName, string Content, DateTimeOffset Timestamp)>();
+        var refreshedDiscoveredSources = new Dictionary<string, SourceDocumentRecord>(StringComparer.OrdinalIgnoreCase);
         var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var filePath in discoveredFiles)
@@ -345,14 +334,35 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
             var content = File.ReadAllText(filePath);
             var fileInfo = new FileInfo(filePath);
             var id = CreateDiscoveredId(fileInfo, usedIds);
-            discoveredDocuments.Add((id, fileInfo.Name, content, fileInfo.LastWriteTimeUtc));
+            refreshedDiscoveredSources[id] = new SourceDocumentRecord(
+                id,
+                fileInfo.Name,
+                content,
+                fileInfo.LastWriteTimeUtc == default ? now : fileInfo.LastWriteTimeUtc);
         }
 
-        var referenceLookup = BuildReferenceLookup(discoveredDocuments);
-
-        foreach (var discoveredDocument in discoveredDocuments)
+        discoveredSources.Clear();
+        foreach (var entry in refreshedDiscoveredSources)
         {
-            using var json = JsonDocument.Parse(discoveredDocument.Content);
+            discoveredSources[entry.Key] = entry.Value;
+        }
+
+        RebuildMaterializedDocumentsLocked();
+    }
+
+    private void RebuildMaterializedDocumentsLocked()
+    {
+        var allSources = discoveredSources.Values
+            .Concat(uploadedSources.Values)
+            .OrderBy(source => source.FileName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var referenceLookup = BuildReferenceLookup(allSources);
+        documents.Clear();
+
+        foreach (var source in allSources)
+        {
+            using var json = JsonDocument.Parse(source.Content);
             var linkedArchitectures = ExtractReferences(json.RootElement)
                 .Select(reference => new ArchitectureReference(
                     reference,
@@ -361,14 +371,20 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
                     ResolveReference(reference, referenceLookup) is null ? "unresolved" : "resolved"))
                 .ToList();
 
-            documents[discoveredDocument.Id] = BuildDocument(
-                discoveredDocument.Id,
-                discoveredDocument.FileName,
-                discoveredDocument.Content,
-                discoveredDocument.Timestamp == default ? now : discoveredDocument.Timestamp,
+            documents[source.Id] = BuildDocument(
+                source.Id,
+                source.FileName,
+                source.Content,
+                source.Timestamp,
                 linkedArchitectures);
         }
     }
+
+    private IReadOnlyList<ArchitectureSummaryResponse> BuildSummariesLocked() =>
+        documents.Values
+            .OrderByDescending(x => x.UpdatedAt)
+            .Select(x => new ArchitectureSummaryResponse(x.Id, x.Title, x.Schema, x.UpdatedAt))
+            .ToList();
 
     private static string CreateDiscoveredId(FileInfo fileInfo, HashSet<string> usedIds)
     {
@@ -389,7 +405,7 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
     }
 
     private static Dictionary<string, string> BuildReferenceLookup(
-        IReadOnlyList<(string Id, string FileName, string Content, DateTimeOffset Timestamp)> discoveredDocuments)
+        IReadOnlyList<SourceDocumentRecord> discoveredDocuments)
     {
         var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -496,4 +512,10 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
 
         return normalized.Trim('-');
     }
+
+    private sealed record SourceDocumentRecord(
+        string Id,
+        string FileName,
+        string Content,
+        DateTimeOffset Timestamp);
 }

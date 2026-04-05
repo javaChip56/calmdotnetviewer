@@ -14,6 +14,17 @@ export class ArchitectureApiClient {
     return response.json();
   }
 
+  async refreshArchitectures(): Promise<ArchitectureSummary[]> {
+    const response = await fetch("/api/architectures/refresh", {
+      method: "POST"
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to refresh architectures: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
   async getArchitecture(id: string): Promise<ArchitectureDocument> {
     const response = await fetch(`/api/architectures/${id}`);
     if (!response.ok) {

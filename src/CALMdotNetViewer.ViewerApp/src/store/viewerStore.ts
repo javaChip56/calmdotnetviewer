@@ -8,8 +8,8 @@ interface ViewerStore {
   isLoading: boolean;
   error: string | null;
   setArchitecture: (
-    architecture: ArchitectureDocument,
-    parsedArchitecture: ParsedArchitecture,
+    architecture: ArchitectureDocument | null,
+    parsedArchitecture: ParsedArchitecture | null,
     preferredSelectedElementId?: string | null
   ) => void;
   setSelectedElementId: (id: string | null) => void;
@@ -27,7 +27,9 @@ export const useViewerStore = create<ViewerStore>((set) => ({
     set({
       architecture,
       parsedArchitecture,
-      selectedElementId: preferredSelectedElementId ?? parsedArchitecture.nodes[0]?.id ?? parsedArchitecture.flows[0]?.id ?? null,
+      selectedElementId: architecture && parsedArchitecture
+        ? preferredSelectedElementId ?? parsedArchitecture.nodes[0]?.id ?? parsedArchitecture.flows[0]?.id ?? null
+        : null,
       error: null
     }),
   setSelectedElementId: (id) => set({ selectedElementId: id }),

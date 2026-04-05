@@ -400,6 +400,11 @@ button {
   cursor: pointer;
 }
 
+.workspace-action-button {
+  min-height: 44px;
+  margin-top: 22px;
+}
+
 .diagram-controls {
   display: flex;
   gap: 6px;

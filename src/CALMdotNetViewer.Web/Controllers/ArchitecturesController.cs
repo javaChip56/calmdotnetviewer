@@ -16,6 +16,13 @@ public sealed class ArchitecturesController(IArchitectureStore store) : Controll
         return Ok(summaries);
     }
 
+    [HttpPost("refresh")]
+    public async Task<ActionResult<IReadOnlyList<ArchitectureSummaryResponse>>> RefreshSummaries(CancellationToken cancellationToken)
+    {
+        var summaries = await store.RefreshAsync(cancellationToken);
+        return Ok(summaries);
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ArchitectureResponse>> GetArchitecture(string id, CancellationToken cancellationToken)
     {
