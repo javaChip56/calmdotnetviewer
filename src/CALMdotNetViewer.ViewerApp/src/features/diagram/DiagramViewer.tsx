@@ -62,6 +62,7 @@ export function DiagramViewer({
   onSelectElement,
   onClearFocus
 }: DiagramViewerProps) {
+  const selectedNode = parsedArchitecture.nodes.find((node) => node.id === focusElementId) ?? null;
   const [mainDiagram, setMainDiagram] = useState<RenderedDiagram | null>(null);
   const [focusedDiagrams, setFocusedDiagrams] = useState<FocusedDiagramSet | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -154,10 +155,10 @@ export function DiagramViewer({
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>Diagram</h2>
+        <h2>{selectedNode ? selectedNode.label : "Architecture Overview"}</h2>
         <div className="diagram-header-actions">
           <span className="panel-meta">
-            {focusElementId ? `Node view: ${focusElementId}` : "Full architecture"}
+            {focusElementId ? "Node preview" : "Full architecture"}
           </span>
           {focusElementId ? (
             <button className="secondary-button" onClick={onClearFocus} type="button">
@@ -169,7 +170,7 @@ export function DiagramViewer({
 
       {error ? <p className="status-banner is-error">{error}</p> : null}
 
-      {mainDiagram ? (
+      {!focusElementId && mainDiagram ? (
         <div onClick={handleDiagramClick}>
           <DiagramSection
             title="Architecture Overview"
@@ -182,7 +183,7 @@ export function DiagramViewer({
       {focusElementId && focusedDiagrams ? (
         <div className="diagram-focus-stack">
           <DiagramSection
-            title="Architecture From Selected Node"
+            title="Architecture"
             diagram={focusedDiagrams.architecture}
             containerRef={focusedArchitectureRef}
           />
@@ -198,23 +199,6 @@ export function DiagramViewer({
           />
         </div>
       ) : null}
-
-      <div className="diagram-node-picker">
-        <h3>Select a node</h3>
-        <div className="diagram-node-list">
-          {parsedArchitecture.nodes.map((node) => (
-            <button
-              key={node.id}
-              className={`diagram-node${focusElementId === node.id ? " is-selected" : ""}`}
-              onClick={() => onSelectElement(node.id)}
-              type="button"
-            >
-              <strong>{node.label}</strong>
-              <span>{node.type}</span>
-            </button>
-          ))}
-        </div>
-      </div>
     </section>
   );
 }
