@@ -150,6 +150,33 @@ button {
   gap: 8px;
 }
 
+.tree-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.tree-search-label {
+  color: #39506b;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.tree-search-input {
+  width: 100%;
+  border: 1px solid #c7d5e5;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #14263d;
+  padding: 10px 12px;
+}
+
+.tree-search-input:focus {
+  outline: 2px solid rgba(44, 117, 199, 0.2);
+  border-color: #2c75c7;
+}
+
 .tree-panel-icon-button {
   width: 34px;
   height: 34px;
@@ -293,6 +320,11 @@ button {
 .diagram-node.is-selected {
   border-color: #2c75c7;
   background: #e7f1fe;
+}
+
+.tree-empty-state {
+  margin: 14px 0 0;
+  color: #5d738d;
 }
 
 .diagram-grid {

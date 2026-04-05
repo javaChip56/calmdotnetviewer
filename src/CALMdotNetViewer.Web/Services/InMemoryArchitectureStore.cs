@@ -60,11 +60,42 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
             throw new InvalidOperationException("The uploaded architecture document is not valid JSON.");
         }
 
+        var documentId = CreateStableId(request.FileName, request.Content);
+        var timestamp = DateTimeOffset.UtcNow;
+        IReadOnlyList<ArchitectureReference> linkedArchitectures;
+
+        using (var json = JsonDocument.Parse(request.Content))
+        {
+            List<(string Id, string FileName, string Content, DateTimeOffset Timestamp)> discoveredDocuments;
+
+            lock (gate)
+            {
+                discoveredDocuments = documents.Values
+                    .Select(existingDocument => (existingDocument.Id, $"{existingDocument.Id}.json", existingDocument.Content, existingDocument.UpdatedAt))
+                    .Append((documentId, request.FileName, request.Content, timestamp))
+                    .ToList();
+            }
+
+            var lookup = BuildReferenceLookup(discoveredDocuments);
+            linkedArchitectures = ExtractReferences(json.RootElement)
+                .Select(reference =>
+                {
+                    var resolvedId = ResolveReference(reference, lookup);
+                    return new ArchitectureReference(
+                        reference,
+                        resolvedId,
+                        BuildReferenceLabel(reference),
+                        resolvedId is null ? "unresolved" : "resolved");
+                })
+                .ToList();
+        }
+
         var document = BuildDocument(
-            CreateStableId(request.FileName, request.Content),
+            documentId,
             request.FileName,
             request.Content,
-            DateTimeOffset.UtcNow);
+            timestamp,
+            linkedArchitectures);
 
         lock (gate)
         {
@@ -165,7 +196,12 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
         }
     }
 
-    private ArchitectureDocument BuildDocument(string id, string fileName, string content, DateTimeOffset timestamp)
+    private ArchitectureDocument BuildDocument(
+        string id,
+        string fileName,
+        string content,
+        DateTimeOffset timestamp,
+        IReadOnlyList<ArchitectureReference>? linkedArchitectures = null)
     {
         using var json = JsonDocument.Parse(content);
         var root = json.RootElement;
@@ -173,21 +209,13 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
             ? schemaElement.GetString()
             : null;
 
-        var references = ExtractReferences(root)
-            .Select(reference => new ArchitectureReference(
-                reference,
-                ResolveSeededReference(reference),
-                BuildReferenceLabel(reference),
-                ResolveSeededReference(reference) is null ? "unresolved" : "resolved"))
-            .ToList();
-
         return new ArchitectureDocument(
             id,
             ExtractTitle(root, fileName),
             content,
             "json",
             schema,
-            references,
+            linkedArchitectures ?? Array.Empty<ArchitectureReference>(),
             timestamp,
             timestamp);
     }
@@ -268,13 +296,6 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
         return reference.Replace('-', ' ').Replace('_', ' ');
     }
 
-    private static string? ResolveSeededReference(string reference) =>
-        reference switch
-        {
-            "https://specs.internal/payment-service" => "payment-service-details",
-            _ => null
-        };
-
     private static string CreateStableId(string fileName, string content)
     {
         var baseName = Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant();
@@ -312,16 +333,167 @@ public sealed class InMemoryArchitectureStore : IArchitectureStore
                 $"Configured architecture source folder was not found: {sampleDataPath}");
         }
 
-        var sampleFiles = new[]
-        {
-            ("payments-architecture", "payments-architecture.json"),
-            ("payment-service-details", "payment-service-details.json")
-        };
+        var discoveredFiles = Directory.EnumerateFiles(sampleDataPath, "*.json", SearchOption.AllDirectories)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        foreach (var (id, fileName) in sampleFiles)
+        var discoveredDocuments = new List<(string Id, string FileName, string Content, DateTimeOffset Timestamp)>();
+        var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var filePath in discoveredFiles)
         {
-            var content = File.ReadAllText(Path.Combine(sampleDataPath, fileName));
-            documents[id] = BuildDocument(id, fileName, content, now);
+            var content = File.ReadAllText(filePath);
+            var fileInfo = new FileInfo(filePath);
+            var id = CreateDiscoveredId(fileInfo, usedIds);
+            discoveredDocuments.Add((id, fileInfo.Name, content, fileInfo.LastWriteTimeUtc));
         }
+
+        var referenceLookup = BuildReferenceLookup(discoveredDocuments);
+
+        foreach (var discoveredDocument in discoveredDocuments)
+        {
+            using var json = JsonDocument.Parse(discoveredDocument.Content);
+            var linkedArchitectures = ExtractReferences(json.RootElement)
+                .Select(reference => new ArchitectureReference(
+                    reference,
+                    ResolveReference(reference, referenceLookup),
+                    BuildReferenceLabel(reference),
+                    ResolveReference(reference, referenceLookup) is null ? "unresolved" : "resolved"))
+                .ToList();
+
+            documents[discoveredDocument.Id] = BuildDocument(
+                discoveredDocument.Id,
+                discoveredDocument.FileName,
+                discoveredDocument.Content,
+                discoveredDocument.Timestamp == default ? now : discoveredDocument.Timestamp,
+                linkedArchitectures);
+        }
+    }
+
+    private static string CreateDiscoveredId(FileInfo fileInfo, HashSet<string> usedIds)
+    {
+        var slug = Slugify(Path.GetFileNameWithoutExtension(fileInfo.Name));
+        if (string.IsNullOrWhiteSpace(slug))
+        {
+            slug = "architecture";
+        }
+
+        var candidate = slug;
+        var suffix = 2;
+        while (!usedIds.Add(candidate))
+        {
+            candidate = $"{slug}-{suffix++}";
+        }
+
+        return candidate;
+    }
+
+    private static Dictionary<string, string> BuildReferenceLookup(
+        IReadOnlyList<(string Id, string FileName, string Content, DateTimeOffset Timestamp)> discoveredDocuments)
+    {
+        var lookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var discoveredDocument in discoveredDocuments)
+        {
+            lookup.TryAdd(discoveredDocument.Id, discoveredDocument.Id);
+            lookup.TryAdd(discoveredDocument.FileName, discoveredDocument.Id);
+            lookup.TryAdd(Path.GetFileNameWithoutExtension(discoveredDocument.FileName), discoveredDocument.Id);
+            lookup.TryAdd(Slugify(Path.GetFileNameWithoutExtension(discoveredDocument.FileName)), discoveredDocument.Id);
+
+            using var json = JsonDocument.Parse(discoveredDocument.Content);
+            var root = json.RootElement;
+            var title = ExtractTitle(root, discoveredDocument.FileName);
+            lookup.TryAdd(title, discoveredDocument.Id);
+            lookup.TryAdd(Slugify(title), discoveredDocument.Id);
+        }
+
+        return lookup;
+    }
+
+    private static string? ResolveReference(string reference, IReadOnlyDictionary<string, string> referenceLookup)
+    {
+        if (referenceLookup.TryGetValue(reference, out var directMatch))
+        {
+            return directMatch;
+        }
+
+        if (Uri.TryCreate(reference, UriKind.Absolute, out var uri))
+        {
+            var lastSegment = uri.Segments.LastOrDefault()?.Trim('/');
+            if (!string.IsNullOrWhiteSpace(lastSegment) &&
+                referenceLookup.TryGetValue(lastSegment, out var segmentMatch))
+            {
+                return segmentMatch;
+            }
+
+            var slug = Slugify(lastSegment ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(slug) &&
+                referenceLookup.TryGetValue(slug, out var slugMatch))
+            {
+                return slugMatch;
+            }
+
+            if (!string.IsNullOrWhiteSpace(slug))
+            {
+                var partialSegmentMatch = referenceLookup
+                    .FirstOrDefault(entry => entry.Key.Contains(slug, StringComparison.OrdinalIgnoreCase));
+
+                if (!string.IsNullOrWhiteSpace(partialSegmentMatch.Value))
+                {
+                    return partialSegmentMatch.Value;
+                }
+            }
+        }
+
+        var fileName = Path.GetFileName(reference);
+        if (!string.IsNullOrWhiteSpace(fileName) &&
+            referenceLookup.TryGetValue(fileName, out var fileNameMatch))
+        {
+            return fileNameMatch;
+        }
+
+        var fileBaseName = Path.GetFileNameWithoutExtension(reference);
+        if (!string.IsNullOrWhiteSpace(fileBaseName) &&
+            referenceLookup.TryGetValue(fileBaseName, out var fileBaseNameMatch))
+        {
+            return fileBaseNameMatch;
+        }
+
+        var normalizedReference = Slugify(reference);
+        if (!string.IsNullOrWhiteSpace(normalizedReference) &&
+            referenceLookup.TryGetValue(normalizedReference, out var normalizedMatch))
+        {
+            return normalizedMatch;
+        }
+
+        if (!string.IsNullOrWhiteSpace(normalizedReference))
+        {
+            var partialMatch = referenceLookup
+                .FirstOrDefault(entry =>
+                    entry.Key.Contains(normalizedReference, StringComparison.OrdinalIgnoreCase) ||
+                    normalizedReference.Contains(entry.Key, StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(partialMatch.Value))
+            {
+                return partialMatch.Value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string Slugify(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = new string(value
+            .ToLowerInvariant()
+            .Select(character => char.IsLetterOrDigit(character) ? character : '-')
+            .ToArray());
+
+        return normalized.Trim('-');
     }
 }

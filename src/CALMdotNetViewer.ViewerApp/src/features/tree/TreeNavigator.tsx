@@ -29,6 +29,10 @@ function buildNodeGroups(nodes: GraphNode[]) {
   }, []);
 }
 
+function buildSearchText(...values: Array<string | null | undefined>): string {
+  return values.filter(Boolean).join(" ").toLowerCase();
+}
+
 export function TreeNavigator({
   parsedArchitecture,
   selectedElementId,
@@ -36,12 +40,49 @@ export function TreeNavigator({
   onSelectElement
 }: TreeNavigatorProps) {
   const nodeGroups = useMemo(() => buildNodeGroups(parsedArchitecture.nodes), [parsedArchitecture.nodes]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => ({
     [nodesSectionKey]: false,
     [relationshipsSectionKey]: false,
     [flowsSectionKey]: false,
     ...Object.fromEntries(nodeGroups.map((group) => [group.type, false]))
   }));
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const filteredNodeGroups = useMemo(() => {
+    if (!normalizedSearch) {
+      return nodeGroups;
+    }
+
+    return nodeGroups
+      .map((group) => ({
+        ...group,
+        nodes: group.nodes.filter((node) =>
+          buildSearchText(node.label, node.id, node.type).includes(normalizedSearch))
+      }))
+      .filter((group) => group.nodes.length > 0);
+  }, [nodeGroups, normalizedSearch]);
+
+  const filteredRelationships = useMemo(() => {
+    if (!normalizedSearch) {
+      return parsedArchitecture.relationships;
+    }
+
+    return parsedArchitecture.relationships.filter((relationship) =>
+      buildSearchText(relationship.label, relationship.id, relationship.type).includes(normalizedSearch));
+  }, [normalizedSearch, parsedArchitecture.relationships]);
+
+  const filteredFlows = useMemo(() => {
+    if (!normalizedSearch) {
+      return parsedArchitecture.flows;
+    }
+
+    return parsedArchitecture.flows.filter((flow) =>
+      buildSearchText(flow.label, flow.id, flow.description).includes(normalizedSearch));
+  }, [normalizedSearch, parsedArchitecture.flows]);
+
+  const filteredNodeCount = filteredNodeGroups.reduce((total, group) => total + group.nodes.length, 0);
+  const hasMatches = filteredNodeCount > 0 || filteredRelationships.length > 0 || filteredFlows.length > 0;
 
   useEffect(() => {
     setCollapsedGroups((currentState) => {
@@ -71,6 +112,20 @@ export function TreeNavigator({
       return currentState;
     });
   }, [nodeGroups]);
+
+  useEffect(() => {
+    if (!normalizedSearch) {
+      return;
+    }
+
+    setCollapsedGroups((currentState) => ({
+      ...currentState,
+      [nodesSectionKey]: false,
+      [relationshipsSectionKey]: false,
+      [flowsSectionKey]: false,
+      ...Object.fromEntries(filteredNodeGroups.map((group) => [group.type, false]))
+    }));
+  }, [filteredNodeGroups, normalizedSearch]);
 
   useEffect(() => {
     if (!selectedElementId) {
@@ -145,6 +200,17 @@ export function TreeNavigator({
         </div>
       </div>
 
+      <label className="tree-search">
+        <span className="tree-search-label">Search</span>
+        <input
+          className="tree-search-input"
+          onChange={(event) => setSearchTerm(event.target.value)}
+          placeholder="Filter nodes, relationships, flows"
+          type="search"
+          value={searchTerm}
+        />
+      </label>
+
       <div className="tree-group">
         <section className="tree-section">
           <button
@@ -154,15 +220,15 @@ export function TreeNavigator({
             type="button"
           >
             <span className={`tree-chevron${collapsedGroups[nodesSectionKey] ? "" : " is-open"}`} aria-hidden="true">
-              {"›"}
+              {">"}
             </span>
             <span className="tree-toggle-label">Nodes</span>
-            <small>{parsedArchitecture.nodes.length}</small>
+            <small>{filteredNodeCount}</small>
           </button>
 
           {!(collapsedGroups[nodesSectionKey] ?? false) ? (
             <div className="tree-subsections">
-              {nodeGroups.map((group) => {
+              {filteredNodeGroups.map((group) => {
                 const isCollapsed = collapsedGroups[group.type] ?? false;
 
                 return (
@@ -174,7 +240,7 @@ export function TreeNavigator({
                       type="button"
                     >
                       <span className={`tree-chevron${isCollapsed ? "" : " is-open"}`} aria-hidden="true">
-                        {"›"}
+                        {">"}
                       </span>
                       <span className="tree-toggle-label">{group.type}</span>
                       <small>{group.nodes.length}</small>
@@ -213,15 +279,15 @@ export function TreeNavigator({
             type="button"
           >
             <span className={`tree-chevron${collapsedGroups[relationshipsSectionKey] ? "" : " is-open"}`} aria-hidden="true">
-              {"›"}
+              {">"}
             </span>
             <span className="tree-toggle-label">Relationships</span>
-            <small>{parsedArchitecture.relationships.length}</small>
+            <small>{filteredRelationships.length}</small>
           </button>
 
           {!(collapsedGroups[relationshipsSectionKey] ?? false) ? (
             <ul className="tree-list tree-sublist">
-              {parsedArchitecture.relationships.map((relationship) => (
+              {filteredRelationships.map((relationship) => (
                 <li key={relationship.id}>
                   <button
                     className={`tree-item${selectedElementId === relationship.id ? " is-selected" : ""}`}
@@ -245,15 +311,15 @@ export function TreeNavigator({
             type="button"
           >
             <span className={`tree-chevron${collapsedGroups[flowsSectionKey] ? "" : " is-open"}`} aria-hidden="true">
-              {"›"}
+              {">"}
             </span>
             <span className="tree-toggle-label">Flows</span>
-            <small>{parsedArchitecture.flows.length}</small>
+            <small>{filteredFlows.length}</small>
           </button>
 
           {!(collapsedGroups[flowsSectionKey] ?? false) ? (
             <ul className="tree-list tree-sublist">
-              {parsedArchitecture.flows.map((flow) => (
+              {filteredFlows.map((flow) => (
                 <li key={flow.id}>
                   <button
                     className={`tree-item${selectedElementId === flow.id ? " is-selected" : ""}`}
@@ -271,6 +337,10 @@ export function TreeNavigator({
           ) : null}
         </section>
       </div>
+
+      {normalizedSearch && !hasMatches ? (
+        <p className="tree-empty-state">No model elements match the current search.</p>
+      ) : null}
     </aside>
   );
 }

@@ -24,6 +24,20 @@ public sealed class InMemoryArchitectureStoreTests
     }
 
     [Fact]
+    public async Task AutoDiscoversJsonFilesRecursivelyFromConfiguredFolder()
+    {
+        using var testFolder = new TemporaryArchitectureFolder();
+        var store = CreateStore(testFolder.RootPath, "SampleData");
+
+        var summaries = await store.GetSummariesAsync(CancellationToken.None);
+        var nestedArchitecture = await store.GetAsync("settlement-engine", CancellationToken.None);
+
+        Assert.Contains(summaries, summary => summary.Id == "settlement-engine");
+        Assert.NotNull(nestedArchitecture);
+        Assert.Equal("Settlement Engine", nestedArchitecture!.Title);
+    }
+
+    [Fact]
     public async Task ValidateAsyncReturnsErrorForInvalidJson()
     {
         using var testFolder = new TemporaryArchitectureFolder();
@@ -140,6 +154,22 @@ public sealed class InMemoryArchitectureStoreTests
                   "metadata": { "title": "Payment Service Details" },
                   "nodes": [
                     { "unique-id": "payment-orchestrator", "node-type": "service", "name": "Payment Orchestrator" }
+                  ],
+                  "relationships": []
+                }
+                """);
+
+            var nestedFolder = Path.Combine(sampleDataPath, "Nested");
+            Directory.CreateDirectory(nestedFolder);
+
+            File.WriteAllText(
+                Path.Combine(nestedFolder, "settlement-engine.json"),
+                """
+                {
+                  "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+                  "metadata": { "title": "Settlement Engine" },
+                  "nodes": [
+                    { "unique-id": "settlement-service", "node-type": "service", "name": "Settlement Service" }
                   ],
                   "relationships": []
                 }
