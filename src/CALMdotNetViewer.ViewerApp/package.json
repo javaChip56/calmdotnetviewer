@@ -11,11 +11,13 @@
   },
   "dependencies": {
     "@mermaid-js/layout-elk": "^0.2.0",
+    "@types/svg-pan-zoom": "^3.3.0",
     "handlebars": "^4.7.8",
     "lodash": "^4.17.21",
     "mermaid": "^11.12.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "svg-pan-zoom": "^3.6.2",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

@@ -3,6 +3,7 @@ import type { ParsedArchitecture } from "../architecture/types";
 import { renderBlockArchitecture } from "./renderBlockArchitecture";
 import { renderRelatedNodesDiagram } from "./renderRelatedNodesDiagram";
 import { findRenderedMermaidNodeElements, resolveRenderedMermaidNodeId } from "./mermaidNodeDom";
+import { PanZoomManager } from "./panZoomManager";
 
 interface DiagramViewerProps {
   parsedArchitecture: ParsedArchitecture;
@@ -28,16 +29,40 @@ function DiagramSection({
   title,
   diagram,
   containerRef,
-  onClick
+  onClick,
+  onZoomIn,
+  onZoomOut,
+  onReset,
+  onFit
 }: {
   title: string;
   diagram: RenderedDiagram;
   containerRef?: Ref<HTMLDivElement>;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
+  onReset?: () => void;
+  onFit?: () => void;
 }) {
   return (
     <div className="diagram-section">
-      <h3>{title}</h3>
+      <div className="diagram-section-header">
+        <h3>{title}</h3>
+        <div className="diagram-controls" aria-label={`${title} controls`}>
+          <button className="diagram-control-btn" onClick={onZoomOut} type="button">
+            -
+          </button>
+          <button className="diagram-control-btn" onClick={onZoomIn} type="button">
+            +
+          </button>
+          <button className="diagram-control-btn" onClick={onReset} type="button">
+            Reset
+          </button>
+          <button className="diagram-control-btn" onClick={onFit} type="button">
+            Fit
+          </button>
+        </div>
+      </div>
       <div
         ref={containerRef}
         className="diagram-canvas"
@@ -73,6 +98,10 @@ export function DiagramViewer({
   const focusedArchitectureRef = useRef<HTMLDivElement | null>(null);
   const relatedNodesRef = useRef<HTMLDivElement | null>(null);
   const interfaceViewRef = useRef<HTMLDivElement | null>(null);
+  const mainPanZoomRef = useRef<PanZoomManager | null>(null);
+  const focusedArchitecturePanZoomRef = useRef<PanZoomManager | null>(null);
+  const relatedNodesPanZoomRef = useRef<PanZoomManager | null>(null);
+  const interfaceViewPanZoomRef = useRef<PanZoomManager | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,6 +165,36 @@ export function DiagramViewer({
   }, [focusedDiagrams, mainDiagram]);
 
   useEffect(() => {
+    const sections: Array<[HTMLDivElement | null, React.MutableRefObject<PanZoomManager | null>]> = [
+      [mainCanvasRef.current, mainPanZoomRef],
+      [focusedArchitectureRef.current, focusedArchitecturePanZoomRef],
+      [relatedNodesRef.current, relatedNodesPanZoomRef],
+      [interfaceViewRef.current, interfaceViewPanZoomRef]
+    ];
+
+    for (const [container, managerRef] of sections) {
+      managerRef.current?.destroy();
+      managerRef.current = null;
+
+      const svgElement = container?.querySelector("svg");
+      if (!container || !(svgElement instanceof SVGSVGElement)) {
+        continue;
+      }
+
+      const manager = new PanZoomManager();
+      manager.initialize(svgElement);
+      managerRef.current = manager;
+    }
+
+    return () => {
+      for (const [, managerRef] of sections) {
+        managerRef.current?.destroy();
+        managerRef.current = null;
+      }
+    };
+  }, [focusedDiagrams, mainDiagram]);
+
+  useEffect(() => {
     const containers = [
       mainCanvasRef.current,
       focusedArchitectureRef.current,
@@ -187,7 +246,7 @@ export function DiagramViewer({
   }
 
   return (
-    <section className="panel">
+    <section className="panel panel-diagram-viewer">
       <div className="panel-header">
         <h2>{selectedNode ? selectedNode.label : "Architecture Overview"}</h2>
         <div className="diagram-header-actions">
@@ -210,6 +269,10 @@ export function DiagramViewer({
           diagram={mainDiagram}
           containerRef={mainCanvasRef}
           onClick={(event) => handleDiagramClick(event, mainCanvasRef.current)}
+          onZoomIn={() => mainPanZoomRef.current?.zoomIn()}
+          onZoomOut={() => mainPanZoomRef.current?.zoomOut()}
+          onReset={() => mainPanZoomRef.current?.reset()}
+          onFit={() => mainPanZoomRef.current?.fit()}
         />
       ) : null}
 
@@ -220,18 +283,30 @@ export function DiagramViewer({
             diagram={focusedDiagrams.architecture}
             containerRef={focusedArchitectureRef}
             onClick={(event) => handleDiagramClick(event, focusedArchitectureRef.current)}
+            onZoomIn={() => focusedArchitecturePanZoomRef.current?.zoomIn()}
+            onZoomOut={() => focusedArchitecturePanZoomRef.current?.zoomOut()}
+            onReset={() => focusedArchitecturePanZoomRef.current?.reset()}
+            onFit={() => focusedArchitecturePanZoomRef.current?.fit()}
           />
           <DiagramSection
             title="Related Nodes"
             diagram={focusedDiagrams.relatedNodes}
             containerRef={relatedNodesRef}
             onClick={(event) => handleDiagramClick(event, relatedNodesRef.current)}
+            onZoomIn={() => relatedNodesPanZoomRef.current?.zoomIn()}
+            onZoomOut={() => relatedNodesPanZoomRef.current?.zoomOut()}
+            onReset={() => relatedNodesPanZoomRef.current?.reset()}
+            onFit={() => relatedNodesPanZoomRef.current?.fit()}
           />
           <DiagramSection
             title="Interface View"
             diagram={focusedDiagrams.interfaceView}
             containerRef={interfaceViewRef}
             onClick={(event) => handleDiagramClick(event, interfaceViewRef.current)}
+            onZoomIn={() => interfaceViewPanZoomRef.current?.zoomIn()}
+            onZoomOut={() => interfaceViewPanZoomRef.current?.zoomOut()}
+            onReset={() => interfaceViewPanZoomRef.current?.reset()}
+            onFit={() => interfaceViewPanZoomRef.current?.fit()}
           />
         </div>
       ) : null}
