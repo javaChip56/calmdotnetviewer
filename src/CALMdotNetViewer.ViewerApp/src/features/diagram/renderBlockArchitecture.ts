@@ -62,7 +62,8 @@ export async function renderBlockArchitecture(
   parsedArchitecture: ParsedArchitecture,
   selectedElementId: string | null,
   focusElementId: string | null,
-  linkMap?: Record<string, string>
+  linkMap?: Record<string, string>,
+  optionOverrides?: Partial<BlockArchOptions>
 ): Promise<{
   svg: string;
   mermaidCode: string;
@@ -88,7 +89,8 @@ export async function renderBlockArchitecture(
         }
       : {}),
     ...(focusElementId ? { "focus-nodes": focusElementId } : {}),
-    ...(selectedElementId ? { "highlight-nodes": selectedElementId } : {})
+    ...(selectedElementId ? { "highlight-nodes": selectedElementId } : {}),
+    ...optionOverrides
   };
 
   const viewModel = transformToBlockArchVM(parsedArchitecture.canonicalModel, options);

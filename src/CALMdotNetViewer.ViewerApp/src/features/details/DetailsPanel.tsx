@@ -13,6 +13,70 @@ interface DetailsPanelProps {
   onReturnToParent: () => void;
 }
 
+type DetailEntry = {
+  label: string;
+  value: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function stringifyValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return JSON.stringify(value);
+}
+
+function toOverviewEntries(selectedNodeRaw: unknown): DetailEntry[] {
+  if (!isRecord(selectedNodeRaw)) {
+    return [];
+  }
+
+  const hiddenKeys = new Set(["metadata", "details", "controls", "interfaces"]);
+
+  return Object.entries(selectedNodeRaw)
+    .filter(([key, value]) => !hiddenKeys.has(key) && !isRecord(value) && !Array.isArray(value))
+    .map(([key, value]) => ({
+      label: key,
+      value: stringifyValue(value)
+    }));
+}
+
+function toMetadataEntries(selectedNodeRaw: unknown): DetailEntry[] {
+  if (!isRecord(selectedNodeRaw) || !isRecord(selectedNodeRaw.metadata)) {
+    return [];
+  }
+
+  return Object.entries(selectedNodeRaw.metadata).map(([key, value]) => ({
+    label: key,
+    value: stringifyValue(value)
+  }));
+}
+
+function DetailList({ entries }: { entries: DetailEntry[] }) {
+  if (entries.length === 0) {
+    return <p className="details-empty">No data available.</p>;
+  }
+
+  return (
+    <dl className="details-list">
+      {entries.map((entry) => (
+        <div className="details-list-row" key={entry.label}>
+          <dt>{entry.label}</dt>
+          <dd>{entry.value || "—"}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function DetailsPanel({
   architecture,
   parsedArchitecture,
@@ -26,11 +90,13 @@ export function DetailsPanel({
   const linkedArchitectures = selectedNode
     ? resolveSelectedNodeLinkedArchitectures(selectedNodeRaw, architecture.linkedArchitectures)
     : [];
+  const overviewEntries = toOverviewEntries(selectedNodeRaw);
+  const metadataEntries = toMetadataEntries(selectedNodeRaw);
 
   return (
     <aside className="panel">
       <div className="panel-header">
-        <h2>Details</h2>
+        <h2>Node Preview</h2>
         <span className="panel-meta">{selectedNode ? selectedNode.id : "No selection"}</span>
       </div>
 
@@ -48,18 +114,19 @@ export function DetailsPanel({
       </div>
 
       {selectedNode ? (
-        <div className="details-content">
-          <dl>
-            <dt>Label</dt>
-            <dd>{selectedNode.label}</dd>
-            <dt>Type</dt>
-            <dd>{selectedNode.type}</dd>
-            <dt>Id</dt>
-            <dd><code>{selectedNode.id}</code></dd>
-          </dl>
-        </div>
+        <>
+          <section className="details-section">
+            <h3>Overview</h3>
+            <DetailList entries={overviewEntries} />
+          </section>
+
+          <section className="details-section">
+            <h3>Metadata</h3>
+            <DetailList entries={metadataEntries} />
+          </section>
+        </>
       ) : (
-        <p>Select a node to inspect its details.</p>
+        <p>Select a node to inspect its overview and metadata.</p>
       )}
 
       {linkedArchitectures.length > 0 ? (

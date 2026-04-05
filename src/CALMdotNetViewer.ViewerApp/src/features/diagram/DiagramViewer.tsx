@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type Ref } from "react";
 import type { ParsedArchitecture } from "../architecture/types";
-import { findRenderedMermaidNodeElements } from "./mermaidNodeDom";
 import { renderBlockArchitecture } from "./renderBlockArchitecture";
 import { renderRelatedNodesDiagram } from "./renderRelatedNodesDiagram";
+import { resolveRenderedMermaidNodeId } from "./mermaidNodeDom";
 
 interface DiagramViewerProps {
   parsedArchitecture: ParsedArchitecture;
@@ -12,6 +12,49 @@ interface DiagramViewerProps {
   onClearFocus: () => void;
 }
 
+interface RenderedDiagram {
+  svg: string;
+  warnings: string[];
+  bindFunctions?: (element: Element) => void;
+}
+
+interface FocusedDiagramSet {
+  architecture: RenderedDiagram;
+  relatedNodes: RenderedDiagram;
+  interfaceView: RenderedDiagram;
+}
+
+function DiagramSection({
+  title,
+  diagram,
+  containerRef
+}: {
+  title: string;
+  diagram: RenderedDiagram;
+  containerRef?: Ref<HTMLDivElement>;
+}) {
+  return (
+    <div className="diagram-section">
+      <h3>{title}</h3>
+      <div
+        ref={containerRef}
+        className="diagram-canvas"
+        dangerouslySetInnerHTML={{ __html: diagram.svg }}
+      />
+      {diagram.warnings.length > 0 ? (
+        <div className="diagram-warnings">
+          <h4>Diagram warnings</h4>
+          <ul>
+            {diagram.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function DiagramViewer({
   parsedArchitecture,
   selectedElementId,
@@ -19,39 +62,54 @@ export function DiagramViewer({
   onSelectElement,
   onClearFocus
 }: DiagramViewerProps) {
-  const [svg, setSvg] = useState<string>("");
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const [mainDiagram, setMainDiagram] = useState<RenderedDiagram | null>(null);
+  const [focusedDiagrams, setFocusedDiagrams] = useState<FocusedDiagramSet | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLDivElement | null>(null);
-  const bindFunctionsRef = useRef<((element: Element) => void) | undefined>(undefined);
+  const mainCanvasRef = useRef<HTMLDivElement | null>(null);
+  const focusedArchitectureRef = useRef<HTMLDivElement | null>(null);
+  const relatedNodesRef = useRef<HTMLDivElement | null>(null);
+  const interfaceViewRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function renderDiagram() {
+    async function renderDiagrams() {
       try {
-        const result = focusElementId
-          ? await renderRelatedNodesDiagram(parsedArchitecture, focusElementId)
-          : await renderBlockArchitecture(parsedArchitecture, selectedElementId, null);
+        const nextMainDiagram = await renderBlockArchitecture(parsedArchitecture, selectedElementId, null);
+        const nextFocusedDiagrams = focusElementId
+          ? await Promise.all([
+              renderBlockArchitecture(parsedArchitecture, selectedElementId, focusElementId),
+              renderRelatedNodesDiagram(parsedArchitecture, focusElementId),
+              renderBlockArchitecture(parsedArchitecture, selectedElementId, focusElementId, undefined, {
+                "render-interfaces": true,
+                "include-containers": "none",
+                "include-children": "none",
+                "edges": "connected"
+              })
+            ]).then(([architecture, relatedNodes, interfaceView]) => ({
+              architecture,
+              relatedNodes,
+              interfaceView
+            }))
+          : null;
+
         if (cancelled) {
           return;
         }
 
-        setSvg(result.svg);
-        setWarnings(result.warnings);
+        setMainDiagram(nextMainDiagram);
+        setFocusedDiagrams(nextFocusedDiagrams);
         setError(null);
-        bindFunctionsRef.current = result.bindFunctions;
       } catch (renderError) {
         if (!cancelled) {
           setError(renderError instanceof Error ? renderError.message : String(renderError));
-          setSvg("");
-          setWarnings([]);
-          bindFunctionsRef.current = undefined;
+          setMainDiagram(null);
+          setFocusedDiagrams(null);
         }
       }
     }
 
-    void renderDiagram();
+    void renderDiagrams();
 
     return () => {
       cancelled = true;
@@ -59,47 +117,19 @@ export function DiagramViewer({
   }, [focusElementId, parsedArchitecture, selectedElementId]);
 
   useEffect(() => {
-    if (!svg || !canvasRef.current || !bindFunctionsRef.current) {
-      return;
-    }
+    const bindings: Array<[RenderedDiagram | null, HTMLDivElement | null]> = [
+      [mainDiagram, mainCanvasRef.current],
+      [focusedDiagrams?.architecture ?? null, focusedArchitectureRef.current],
+      [focusedDiagrams?.relatedNodes ?? null, relatedNodesRef.current],
+      [focusedDiagrams?.interfaceView ?? null, interfaceViewRef.current]
+    ];
 
-    bindFunctionsRef.current(canvasRef.current);
-  }, [svg]);
-
-  useEffect(() => {
-    if (!svg || !canvasRef.current) {
-      return;
-    }
-
-    const cleanupHandlers: Array<() => void> = [];
-
-    for (const node of parsedArchitecture.nodes) {
-      const nodeId = node.id;
-      const nodeElements = findRenderedMermaidNodeElements(canvasRef.current, nodeId);
-
-      for (const nodeElement of nodeElements) {
-        nodeElement.setAttribute("data-calm-node-id", nodeId);
-        nodeElement.classList.add("calm-node-click-target");
-
-        const handleNodeClick = (event: Event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          onSelectElement(nodeId);
-        };
-
-        nodeElement.addEventListener("click", handleNodeClick);
-        cleanupHandlers.push(() => {
-          nodeElement.removeEventListener("click", handleNodeClick);
-        });
+    for (const [diagram, element] of bindings) {
+      if (diagram?.bindFunctions && element) {
+        diagram.bindFunctions(element);
       }
     }
-
-    return () => {
-      for (const cleanup of cleanupHandlers) {
-        cleanup();
-      }
-    };
-  }, [onSelectElement, parsedArchitecture.nodes, svg]);
+  }, [focusedDiagrams, mainDiagram]);
 
   function handleDiagramClick(event: MouseEvent<HTMLDivElement>) {
     const target = event.target;
@@ -107,13 +137,18 @@ export function DiagramViewer({
       return;
     }
 
-    const nodeElement = target.closest("[data-calm-node-id]");
-    const nodeId = nodeElement?.getAttribute("data-calm-node-id");
-    if (nodeId) {
-      event.preventDefault();
-      onSelectElement(nodeId);
+    const nodeId = resolveRenderedMermaidNodeId(
+      target,
+      parsedArchitecture.nodes.map((node) => node.id),
+      mainCanvasRef.current
+    );
+
+    if (!nodeId) {
       return;
     }
+
+    event.preventDefault();
+    onSelectElement(nodeId);
   }
 
   return (
@@ -132,19 +167,40 @@ export function DiagramViewer({
         </div>
       </div>
 
-      {error ? (
-        <p className="status-banner is-error">{error}</p>
-      ) : (
-        <div
-          ref={canvasRef}
-          className="diagram-canvas"
-          onClick={handleDiagramClick}
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
-      )}
+      {error ? <p className="status-banner is-error">{error}</p> : null}
+
+      {mainDiagram ? (
+        <div onClick={handleDiagramClick}>
+          <DiagramSection
+            title="Architecture Overview"
+            diagram={mainDiagram}
+            containerRef={mainCanvasRef}
+          />
+        </div>
+      ) : null}
+
+      {focusElementId && focusedDiagrams ? (
+        <div className="diagram-focus-stack">
+          <DiagramSection
+            title="Architecture From Selected Node"
+            diagram={focusedDiagrams.architecture}
+            containerRef={focusedArchitectureRef}
+          />
+          <DiagramSection
+            title="Related Nodes"
+            diagram={focusedDiagrams.relatedNodes}
+            containerRef={relatedNodesRef}
+          />
+          <DiagramSection
+            title="Interface View"
+            diagram={focusedDiagrams.interfaceView}
+            containerRef={interfaceViewRef}
+          />
+        </div>
+      ) : null}
 
       <div className="diagram-node-picker">
-        <h3>Focus a node</h3>
+        <h3>Select a node</h3>
         <div className="diagram-node-list">
           {parsedArchitecture.nodes.map((node) => (
             <button
@@ -159,28 +215,6 @@ export function DiagramViewer({
           ))}
         </div>
       </div>
-
-      <div className="diagram-relationships">
-        <h3>Relationships</h3>
-        <ul>
-          {parsedArchitecture.edges.map((edge) => (
-            <li key={edge.id}>
-              <code>{edge.source}</code> -&gt; <code>{edge.target}</code> ({edge.label})
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {warnings.length > 0 ? (
-        <div className="diagram-warnings">
-          <h3>Diagram warnings</h3>
-          <ul>
-            {warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
     </section>
   );
 }
