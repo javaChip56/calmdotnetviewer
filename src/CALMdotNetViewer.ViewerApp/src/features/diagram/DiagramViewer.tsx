@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent, type Ref } from "react";
 import type { ParsedArchitecture } from "../architecture/types";
 import { renderBlockArchitecture } from "./renderBlockArchitecture";
 import { renderRelatedNodesDiagram } from "./renderRelatedNodesDiagram";
-import { resolveRenderedMermaidNodeId } from "./mermaidNodeDom";
+import { findRenderedMermaidNodeElements, resolveRenderedMermaidNodeId } from "./mermaidNodeDom";
 
 interface DiagramViewerProps {
   parsedArchitecture: ParsedArchitecture;
@@ -27,11 +27,13 @@ interface FocusedDiagramSet {
 function DiagramSection({
   title,
   diagram,
-  containerRef
+  containerRef,
+  onClick
 }: {
   title: string;
   diagram: RenderedDiagram;
   containerRef?: Ref<HTMLDivElement>;
+  onClick?: (event: MouseEvent<HTMLDivElement>) => void;
 }) {
   return (
     <div className="diagram-section">
@@ -39,6 +41,7 @@ function DiagramSection({
       <div
         ref={containerRef}
         className="diagram-canvas"
+        onClick={onClick}
         dangerouslySetInnerHTML={{ __html: diagram.svg }}
       />
       {diagram.warnings.length > 0 ? (
@@ -132,16 +135,47 @@ export function DiagramViewer({
     }
   }, [focusedDiagrams, mainDiagram]);
 
-  function handleDiagramClick(event: MouseEvent<HTMLDivElement>) {
+  useEffect(() => {
+    const containers = [
+      mainCanvasRef.current,
+      focusedArchitectureRef.current,
+      relatedNodesRef.current,
+      interfaceViewRef.current
+    ];
+
+    for (const container of containers) {
+      if (!container) {
+        continue;
+      }
+
+      for (const node of parsedArchitecture.nodes) {
+        const renderedElements = findRenderedMermaidNodeElements(container, node.id);
+        for (const element of renderedElements) {
+          element.setAttribute("data-calm-node-id", node.id);
+          element.classList.add("calm-node-click-target");
+        }
+      }
+    }
+  }, [focusedDiagrams, mainDiagram, parsedArchitecture.nodes]);
+
+  function handleDiagramClick(event: MouseEvent<HTMLDivElement>, container: HTMLDivElement | null) {
     const target = event.target;
     if (!(target instanceof Element)) {
+      return;
+    }
+
+    const taggedNodeElement = target.closest("[data-calm-node-id]");
+    const taggedNodeId = taggedNodeElement?.getAttribute("data-calm-node-id");
+    if (taggedNodeId) {
+      event.preventDefault();
+      onSelectElement(taggedNodeId);
       return;
     }
 
     const nodeId = resolveRenderedMermaidNodeId(
       target,
       parsedArchitecture.nodes.map((node) => node.id),
-      mainCanvasRef.current
+      container
     );
 
     if (!nodeId) {
@@ -171,13 +205,12 @@ export function DiagramViewer({
       {error ? <p className="status-banner is-error">{error}</p> : null}
 
       {!focusElementId && mainDiagram ? (
-        <div onClick={handleDiagramClick}>
-          <DiagramSection
-            title="Architecture Overview"
-            diagram={mainDiagram}
-            containerRef={mainCanvasRef}
-          />
-        </div>
+        <DiagramSection
+          title="Architecture Overview"
+          diagram={mainDiagram}
+          containerRef={mainCanvasRef}
+          onClick={(event) => handleDiagramClick(event, mainCanvasRef.current)}
+        />
       ) : null}
 
       {focusElementId && focusedDiagrams ? (
@@ -186,16 +219,19 @@ export function DiagramViewer({
             title="Architecture"
             diagram={focusedDiagrams.architecture}
             containerRef={focusedArchitectureRef}
+            onClick={(event) => handleDiagramClick(event, focusedArchitectureRef.current)}
           />
           <DiagramSection
             title="Related Nodes"
             diagram={focusedDiagrams.relatedNodes}
             containerRef={relatedNodesRef}
+            onClick={(event) => handleDiagramClick(event, relatedNodesRef.current)}
           />
           <DiagramSection
             title="Interface View"
             diagram={focusedDiagrams.interfaceView}
             containerRef={interfaceViewRef}
+            onClick={(event) => handleDiagramClick(event, interfaceViewRef.current)}
           />
         </div>
       ) : null}

@@ -1,4 +1,5 @@
 import type { ArchitectureDocument, ParsedArchitecture } from "../architecture/types";
+import { resolveSelectedNodeLinkedArchitectures } from "../architecture/linkedArchitectureReferences";
 
 interface DetailsPanelProps {
   architecture: ArchitectureDocument;
@@ -23,7 +24,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toDisplayValue(value: unknown): string {
   if (value === null || value === undefined || value === "") {
-    return "—";
+    return "--";
   }
 
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -78,14 +79,17 @@ export function DetailsPanel({
   architecture,
   parsedArchitecture,
   selectedElementId,
-  navigationParent: _navigationParent,
-  onOpenLinkedArchitecture: _onOpenLinkedArchitecture,
-  onReturnToParent: _onReturnToParent
+  navigationParent,
+  onOpenLinkedArchitecture,
+  onReturnToParent
 }: DetailsPanelProps) {
   const selectedNode = parsedArchitecture.nodes.find((node) => node.id === selectedElementId) ?? null;
   const selectedNodeRaw = selectedNode ? parsedArchitecture.nodeLookup[selectedNode.id] : null;
   const overviewEntries = buildOverviewEntries(selectedNodeRaw);
   const metadataEntries = buildMetadataEntries(selectedNodeRaw);
+  const linkedArchitectures = selectedNode
+    ? resolveSelectedNodeLinkedArchitectures(selectedNodeRaw, architecture.linkedArchitectures)
+    : [];
 
   return (
     <aside className="panel">
@@ -93,6 +97,23 @@ export function DetailsPanel({
         <h2>{selectedNode?.label ?? architecture.title}</h2>
         <span className="panel-meta">{selectedNode ? "Node details" : "No selection"}</span>
       </div>
+
+      {navigationParent ? (
+        <section className="details-section">
+          <h3>Navigation</h3>
+          <ul className="details-linked-list">
+            <li>
+              <div>
+                <strong>Opened from {navigationParent.title}</strong>
+                <p>Return to the parent architecture and restore the previous node preview.</p>
+              </div>
+              <button onClick={onReturnToParent} type="button">
+                Return
+              </button>
+            </li>
+          </ul>
+        </section>
+      ) : null}
 
       {selectedNode ? (
         <>
@@ -105,6 +126,29 @@ export function DetailsPanel({
             <h3>Metadata</h3>
             <DetailList entries={metadataEntries} />
           </section>
+
+          {linkedArchitectures.length > 0 ? (
+            <section className="details-section">
+              <h3>Linked Architecture</h3>
+              <ul className="details-linked-list">
+                {linkedArchitectures.map((linkedArchitecture) => (
+                  <li key={linkedArchitecture.reference}>
+                    <div>
+                      <strong>{linkedArchitecture.label}</strong>
+                      <p>{linkedArchitecture.reference}</p>
+                    </div>
+                    <button
+                      disabled={!linkedArchitecture.resolvedId}
+                      onClick={() => linkedArchitecture.resolvedId && onOpenLinkedArchitecture(linkedArchitecture.resolvedId)}
+                      type="button"
+                    >
+                      Open
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </>
       ) : (
         <p>Select a node from the architecture diagram or the tree to view its preview.</p>

@@ -5,17 +5,13 @@ interface TreeNavigatorProps {
   selectedElementId: string | null;
   linkedNodeIds: Set<string>;
   onSelectElement: (id: string) => void;
-  onOpenLinkedArchitecture: (linkedId: string) => void;
-  resolveLinkedArchitectureId: (nodeId: string) => string | null;
 }
 
 export function TreeNavigator({
   parsedArchitecture,
   selectedElementId,
   linkedNodeIds,
-  onSelectElement,
-  onOpenLinkedArchitecture,
-  resolveLinkedArchitectureId
+  onSelectElement
 }: TreeNavigatorProps) {
   return (
     <aside className="panel">
@@ -31,15 +27,7 @@ export function TreeNavigator({
             <li key={node.id}>
               <button
                 className={`tree-item${selectedElementId === node.id ? " is-selected" : ""}`}
-                onClick={() => {
-                  const linkedArchitectureId = resolveLinkedArchitectureId(node.id);
-                  if (linkedArchitectureId) {
-                    onOpenLinkedArchitecture(linkedArchitectureId);
-                    return;
-                  }
-
-                  onSelectElement(node.id);
-                }}
+                onClick={() => onSelectElement(node.id)}
                 type="button"
               >
                 <span>

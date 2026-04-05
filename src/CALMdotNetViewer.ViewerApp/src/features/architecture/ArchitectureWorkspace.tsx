@@ -308,17 +308,6 @@ export function ArchitectureWorkspace() {
       : []
   );
 
-  function resolveLinkedArchitectureId(nodeId: string): string | null {
-    if (!architecture || !parsedArchitecture) {
-      return null;
-    }
-
-    return resolvePrimaryLinkedArchitecture(
-      parsedArchitecture.nodeLookup[nodeId],
-      architecture.linkedArchitectures
-    )?.resolvedId ?? null;
-  }
-
   return (
     <>
       <header className="workspace-header">
@@ -378,8 +367,6 @@ export function ArchitectureWorkspace() {
             selectedElementId={selectedElementId}
             linkedNodeIds={linkedNodeIds}
             onSelectElement={handleSelectElement}
-            onOpenLinkedArchitecture={handleOpenLinkedArchitecture}
-            resolveLinkedArchitectureId={resolveLinkedArchitectureId}
           />
           <DiagramViewer
             parsedArchitecture={parsedArchitecture}
