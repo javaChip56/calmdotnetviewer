@@ -61,7 +61,10 @@ function extractMermaidBlock(renderedTemplate: string): string {
 
 export async function renderRelatedNodesDiagram(
   parsedArchitecture: ParsedArchitecture,
-  nodeId: string
+  options: {
+    nodeId?: string;
+    relationshipId?: string;
+  }
 ): Promise<{
   svg: string;
   mermaidCode: string;
@@ -73,11 +76,12 @@ export async function renderRelatedNodesDiagram(
   const handlebars = createHandlebars();
   const template = handlebars.compile(relatedNodesTemplate);
   const viewModel = RelatedNodesWidget.transformToViewModel?.(parsedArchitecture.canonicalModel, {
-    "node-id": nodeId
+    ...(options.nodeId ? { "node-id": options.nodeId } : {}),
+    ...(options.relationshipId ? { "relationship-id": options.relationshipId } : {})
   });
 
   if (!viewModel) {
-    throw new Error(`Unable to build related nodes view for ${nodeId}.`);
+    throw new Error(`Unable to build related nodes view.`);
   }
 
   const renderedTemplate = template(viewModel);

@@ -2,7 +2,7 @@ import { CalmCore } from "@finos/calm-models/model";
 import type { CalmCoreCanonicalModel, CalmRelationshipCanonicalModel } from "@finos/calm-models/canonical";
 import { toKindView } from "@finos/calm-models/canonical";
 import type { CalmCoreSchema } from "@finos/calm-models/types";
-import type { GraphEdge, GraphFlow, GraphNode, ParsedArchitecture } from "./types";
+import type { GraphEdge, GraphFlow, GraphNode, GraphRelationship, ParsedArchitecture } from "./types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -66,6 +66,15 @@ export function parseArchitecture(content: string): ParsedArchitecture {
   }));
 
   const edges = toGraphEdges(canonicalModel.relationships ?? []);
+  const relationships: GraphRelationship[] = (canonicalModel.relationships ?? []).map((relationship) => {
+    const kind = toKindView(relationship["relationship-type"]);
+
+    return {
+      id: relationship["unique-id"],
+      label: relationship.description ?? relationship.protocol ?? relationship["unique-id"],
+      type: kind.kind
+    };
+  });
   const flows: GraphFlow[] = (canonicalModel.flows ?? []).map((flow) => ({
     id: flow["unique-id"],
     label: flow.name ?? flow.description ?? flow["unique-id"],
@@ -90,6 +99,7 @@ export function parseArchitecture(content: string): ParsedArchitecture {
   return {
     nodes,
     edges,
+    relationships,
     flows,
     raw,
     canonicalModel,

@@ -70,6 +70,19 @@ function buildFlowOverviewEntries(selectedFlowRaw: unknown): DetailEntry[] {
   ];
 }
 
+function buildRelationshipOverviewEntries(selectedRelationshipRaw: unknown): DetailEntry[] {
+  if (!isRecord(selectedRelationshipRaw)) {
+    return [];
+  }
+
+  return [
+    { label: "Unique Id", value: toDisplayValue(selectedRelationshipRaw["unique-id"]) },
+    { label: "Description", value: toDisplayValue(selectedRelationshipRaw.description) },
+    { label: "Protocol", value: toDisplayValue(selectedRelationshipRaw.protocol) },
+    { label: "Relationship Type", value: toDisplayValue(selectedRelationshipRaw["relationship-type"]) }
+  ];
+}
+
 function DetailList({ entries }: { entries: DetailEntry[] }) {
   if (entries.length === 0) {
     return <p className="details-empty">No data available.</p>;
@@ -96,11 +109,14 @@ export function DetailsPanel({
   onReturnToParent
 }: DetailsPanelProps) {
   const selectedNode = parsedArchitecture.nodes.find((node) => node.id === selectedElementId) ?? null;
+  const selectedRelationship = parsedArchitecture.relationships.find((relationship) => relationship.id === selectedElementId) ?? null;
   const selectedFlow = parsedArchitecture.flows.find((flow) => flow.id === selectedElementId) ?? null;
   const selectedNodeRaw = selectedNode ? parsedArchitecture.nodeLookup[selectedNode.id] : null;
+  const selectedRelationshipRaw = selectedRelationship ? parsedArchitecture.relationshipLookup[selectedRelationship.id] : null;
   const selectedFlowRaw = selectedFlow ? parsedArchitecture.flowLookup[selectedFlow.id] : null;
   const overviewEntries = buildOverviewEntries(selectedNodeRaw);
   const metadataEntries = buildMetadataEntries(selectedNodeRaw);
+  const relationshipOverviewEntries = buildRelationshipOverviewEntries(selectedRelationshipRaw);
   const flowOverviewEntries = buildFlowOverviewEntries(selectedFlowRaw);
   const linkedArchitectures = selectedNode
     ? resolveSelectedNodeLinkedArchitectures(selectedNodeRaw, architecture.linkedArchitectures)
@@ -109,8 +125,10 @@ export function DetailsPanel({
   return (
     <aside className="panel">
       <div className="panel-header">
-        <h2>{selectedNode?.label ?? selectedFlow?.label ?? architecture.title}</h2>
-        <span className="panel-meta">{selectedNode ? "Node details" : selectedFlow ? "Flow details" : "No selection"}</span>
+        <h2>{selectedNode?.label ?? selectedRelationship?.label ?? selectedFlow?.label ?? architecture.title}</h2>
+        <span className="panel-meta">
+          {selectedNode ? "Node details" : selectedRelationship ? "Relationship details" : selectedFlow ? "Flow details" : "No selection"}
+        </span>
       </div>
 
       {navigationParent ? (
@@ -165,6 +183,11 @@ export function DetailsPanel({
             </section>
           ) : null}
         </>
+      ) : selectedRelationship ? (
+        <section className="details-section">
+          <h3>Overview</h3>
+          <DetailList entries={relationshipOverviewEntries} />
+        </section>
       ) : selectedFlow ? (
         <section className="details-section">
           <h3>Overview</h3>

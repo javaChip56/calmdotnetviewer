@@ -58,6 +58,12 @@ export interface GraphEdge {
   type: string;
 }
 
+export interface GraphRelationship {
+  id: string;
+  label: string;
+  type: string;
+}
+
 export interface GraphFlow {
   id: string;
   label: string;
@@ -67,6 +73,7 @@ export interface GraphFlow {
 export interface ParsedArchitecture {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  relationships: GraphRelationship[];
   flows: GraphFlow[];
   raw: unknown;
   canonicalModel: CalmCoreCanonicalModel;
