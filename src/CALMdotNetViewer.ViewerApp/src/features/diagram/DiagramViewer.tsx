@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type MouseEvent, type Ref } from "react";
+import { useEffect, useRef, useState, type MouseEvent, type MutableRefObject, type Ref } from "react";
 import type { ParsedArchitecture } from "../architecture/types";
+import { exportDiagramAsPng, exportDiagramAsSvg } from "./diagramExport";
 import { renderBlockArchitecture } from "./renderBlockArchitecture";
 import { renderFlowSequenceDiagram } from "./renderFlowSequenceDiagram";
 import { renderRelatedNodesDiagram } from "./renderRelatedNodesDiagram";
@@ -40,7 +41,9 @@ function DiagramSection({
   onZoomIn,
   onZoomOut,
   onReset,
-  onFit
+  onFit,
+  onExportSvg,
+  onExportPng
 }: {
   title: string;
   diagram: RenderedDiagram;
@@ -50,7 +53,25 @@ function DiagramSection({
   onZoomOut?: () => void;
   onReset?: () => void;
   onFit?: () => void;
+  onExportSvg?: () => void;
+  onExportPng?: () => Promise<void> | void;
 }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, []);
+
   return (
     <div className="diagram-section">
       <div className="diagram-section-header">
@@ -68,6 +89,43 @@ function DiagramSection({
           <button className="diagram-control-btn" onClick={onFit} type="button">
             Fit
           </button>
+          <div className="diagram-menu" ref={menuRef}>
+            <button
+              aria-expanded={isMenuOpen}
+              aria-haspopup="menu"
+              className="diagram-control-btn diagram-menu-trigger"
+              onClick={() => setIsMenuOpen((currentValue) => !currentValue)}
+              type="button"
+            >
+              ...
+            </button>
+            {isMenuOpen ? (
+              <div className="diagram-menu-popover" role="menu">
+                <button
+                  className="diagram-menu-item"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    onExportSvg?.();
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  Export to SVG
+                </button>
+                <button
+                  className="diagram-menu-item"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    void onExportPng?.();
+                  }}
+                  role="menuitem"
+                  type="button"
+                >
+                  Export to PNG
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
       <div
@@ -88,6 +146,18 @@ function DiagramSection({
       ) : null}
     </div>
   );
+}
+
+function buildExportTitle(contextTitle: string, sectionTitle: string): string {
+  return `${contextTitle} ${sectionTitle}`;
+}
+
+function waitForNextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
 }
 
 export function DiagramViewer({
@@ -317,6 +387,15 @@ export function DiagramViewer({
     onSelectElement(nodeId);
   }
 
+  async function fitThenExport(
+    panZoomRef: MutableRefObject<PanZoomManager | null>,
+    exportAction: () => void | Promise<void>
+  ): Promise<void> {
+    panZoomRef.current?.fit();
+    await waitForNextPaint();
+    await exportAction();
+  }
+
   return (
     <section className="panel panel-diagram-viewer">
       <div className="panel-header">
@@ -345,6 +424,14 @@ export function DiagramViewer({
           onZoomOut={() => mainPanZoomRef.current?.zoomOut()}
           onReset={() => mainPanZoomRef.current?.reset()}
           onFit={() => mainPanZoomRef.current?.fit()}
+          onExportSvg={() => fitThenExport(
+            mainPanZoomRef,
+            () => exportDiagramAsSvg(mainCanvasRef.current, buildExportTitle("architecture-overview", "overview"))
+          )}
+          onExportPng={() => fitThenExport(
+            mainPanZoomRef,
+            () => exportDiagramAsPng(mainCanvasRef.current, buildExportTitle("architecture-overview", "overview"))
+          )}
         />
       ) : null}
 
@@ -359,6 +446,14 @@ export function DiagramViewer({
             onZoomOut={() => focusedArchitecturePanZoomRef.current?.zoomOut()}
             onReset={() => focusedArchitecturePanZoomRef.current?.reset()}
             onFit={() => focusedArchitecturePanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              focusedArchitecturePanZoomRef,
+              () => exportDiagramAsSvg(focusedArchitectureRef.current, buildExportTitle(selectedNode.label, "architecture"))
+            )}
+            onExportPng={() => fitThenExport(
+              focusedArchitecturePanZoomRef,
+              () => exportDiagramAsPng(focusedArchitectureRef.current, buildExportTitle(selectedNode.label, "architecture"))
+            )}
           />
           <DiagramSection
             title="Related Nodes"
@@ -369,6 +464,14 @@ export function DiagramViewer({
             onZoomOut={() => relatedNodesPanZoomRef.current?.zoomOut()}
             onReset={() => relatedNodesPanZoomRef.current?.reset()}
             onFit={() => relatedNodesPanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              relatedNodesPanZoomRef,
+              () => exportDiagramAsSvg(relatedNodesRef.current, buildExportTitle(selectedNode.label, "related-nodes"))
+            )}
+            onExportPng={() => fitThenExport(
+              relatedNodesPanZoomRef,
+              () => exportDiagramAsPng(relatedNodesRef.current, buildExportTitle(selectedNode.label, "related-nodes"))
+            )}
           />
           <DiagramSection
             title="Interface View"
@@ -379,6 +482,14 @@ export function DiagramViewer({
             onZoomOut={() => interfaceViewPanZoomRef.current?.zoomOut()}
             onReset={() => interfaceViewPanZoomRef.current?.reset()}
             onFit={() => interfaceViewPanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              interfaceViewPanZoomRef,
+              () => exportDiagramAsSvg(interfaceViewRef.current, buildExportTitle(selectedNode.label, "interface-view"))
+            )}
+            onExportPng={() => fitThenExport(
+              interfaceViewPanZoomRef,
+              () => exportDiagramAsPng(interfaceViewRef.current, buildExportTitle(selectedNode.label, "interface-view"))
+            )}
           />
         </div>
       ) : null}
@@ -394,6 +505,14 @@ export function DiagramViewer({
             onZoomOut={() => focusedArchitecturePanZoomRef.current?.zoomOut()}
             onReset={() => focusedArchitecturePanZoomRef.current?.reset()}
             onFit={() => focusedArchitecturePanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              focusedArchitecturePanZoomRef,
+              () => exportDiagramAsSvg(focusedArchitectureRef.current, buildExportTitle(selectedRelationship.label, "architecture"))
+            )}
+            onExportPng={() => fitThenExport(
+              focusedArchitecturePanZoomRef,
+              () => exportDiagramAsPng(focusedArchitectureRef.current, buildExportTitle(selectedRelationship.label, "architecture"))
+            )}
           />
           <DiagramSection
             title="Related Nodes"
@@ -404,6 +523,14 @@ export function DiagramViewer({
             onZoomOut={() => relatedNodesPanZoomRef.current?.zoomOut()}
             onReset={() => relatedNodesPanZoomRef.current?.reset()}
             onFit={() => relatedNodesPanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              relatedNodesPanZoomRef,
+              () => exportDiagramAsSvg(relatedNodesRef.current, buildExportTitle(selectedRelationship.label, "related-nodes"))
+            )}
+            onExportPng={() => fitThenExport(
+              relatedNodesPanZoomRef,
+              () => exportDiagramAsPng(relatedNodesRef.current, buildExportTitle(selectedRelationship.label, "related-nodes"))
+            )}
           />
           <DiagramSection
             title="Interface View"
@@ -414,6 +541,14 @@ export function DiagramViewer({
             onZoomOut={() => interfaceViewPanZoomRef.current?.zoomOut()}
             onReset={() => interfaceViewPanZoomRef.current?.reset()}
             onFit={() => interfaceViewPanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              interfaceViewPanZoomRef,
+              () => exportDiagramAsSvg(interfaceViewRef.current, buildExportTitle(selectedRelationship.label, "interface-view"))
+            )}
+            onExportPng={() => fitThenExport(
+              interfaceViewPanZoomRef,
+              () => exportDiagramAsPng(interfaceViewRef.current, buildExportTitle(selectedRelationship.label, "interface-view"))
+            )}
           />
         </div>
       ) : null}
@@ -429,6 +564,14 @@ export function DiagramViewer({
             onZoomOut={() => flowArchitecturePanZoomRef.current?.zoomOut()}
             onReset={() => flowArchitecturePanZoomRef.current?.reset()}
             onFit={() => flowArchitecturePanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              flowArchitecturePanZoomRef,
+              () => exportDiagramAsSvg(flowArchitectureRef.current, buildExportTitle(selectedFlow.label, "architecture"))
+            )}
+            onExportPng={() => fitThenExport(
+              flowArchitecturePanZoomRef,
+              () => exportDiagramAsPng(flowArchitectureRef.current, buildExportTitle(selectedFlow.label, "architecture"))
+            )}
           />
           <DiagramSection
             title="Flow Sequence"
@@ -438,6 +581,14 @@ export function DiagramViewer({
             onZoomOut={() => flowSequencePanZoomRef.current?.zoomOut()}
             onReset={() => flowSequencePanZoomRef.current?.reset()}
             onFit={() => flowSequencePanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              flowSequencePanZoomRef,
+              () => exportDiagramAsSvg(flowSequenceRef.current, buildExportTitle(selectedFlow.label, "flow-sequence"))
+            )}
+            onExportPng={() => fitThenExport(
+              flowSequencePanZoomRef,
+              () => exportDiagramAsPng(flowSequenceRef.current, buildExportTitle(selectedFlow.label, "flow-sequence"))
+            )}
           />
           <DiagramSection
             title="Interfaces"
@@ -448,6 +599,14 @@ export function DiagramViewer({
             onZoomOut={() => flowInterfacesPanZoomRef.current?.zoomOut()}
             onReset={() => flowInterfacesPanZoomRef.current?.reset()}
             onFit={() => flowInterfacesPanZoomRef.current?.fit()}
+            onExportSvg={() => fitThenExport(
+              flowInterfacesPanZoomRef,
+              () => exportDiagramAsSvg(flowInterfacesRef.current, buildExportTitle(selectedFlow.label, "interfaces"))
+            )}
+            onExportPng={() => fitThenExport(
+              flowInterfacesPanZoomRef,
+              () => exportDiagramAsPng(flowInterfacesRef.current, buildExportTitle(selectedFlow.label, "interfaces"))
+            )}
           />
         </div>
       ) : null}

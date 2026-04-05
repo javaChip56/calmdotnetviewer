@@ -372,6 +372,7 @@ button {
   display: flex;
   gap: 6px;
   align-items: center;
+  position: relative;
 }
 
 .diagram-control-btn {
@@ -386,6 +387,43 @@ button {
 
 .diagram-control-btn:hover,
 .secondary-button:hover {
+  background: #eef5fc;
+}
+
+.diagram-menu {
+  position: relative;
+}
+
+.diagram-menu-trigger {
+  min-width: 44px;
+  letter-spacing: 1px;
+}
+
+.diagram-menu-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 160px;
+  padding: 8px;
+  border: 1px solid #dbe5f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(20, 38, 61, 0.14);
+  z-index: 3;
+}
+
+.diagram-menu-item {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #244e7e;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.diagram-menu-item:hover {
   background: #eef5fc;
 }
 
