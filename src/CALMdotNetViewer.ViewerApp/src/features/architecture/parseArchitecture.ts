@@ -2,7 +2,7 @@ import { CalmCore } from "@finos/calm-models/model";
 import type { CalmCoreCanonicalModel, CalmRelationshipCanonicalModel } from "@finos/calm-models/canonical";
 import { toKindView } from "@finos/calm-models/canonical";
 import type { CalmCoreSchema } from "@finos/calm-models/types";
-import type { GraphEdge, GraphNode, ParsedArchitecture } from "./types";
+import type { GraphEdge, GraphFlow, GraphNode, ParsedArchitecture } from "./types";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -66,6 +66,11 @@ export function parseArchitecture(content: string): ParsedArchitecture {
   }));
 
   const edges = toGraphEdges(canonicalModel.relationships ?? []);
+  const flows: GraphFlow[] = (canonicalModel.flows ?? []).map((flow) => ({
+    id: flow["unique-id"],
+    label: flow.name ?? flow.description ?? flow["unique-id"],
+    description: flow.description ?? ""
+  }));
 
   const nodeLookup = Object.fromEntries(
     asArray(raw.nodes).map((node) => [String(node["unique-id"] ?? node.id ?? ""), node])
@@ -78,12 +83,18 @@ export function parseArchitecture(content: string): ParsedArchitecture {
     ])
   );
 
+  const flowLookup = Object.fromEntries(
+    asArray(raw.flows).map((flow) => [String(flow["unique-id"] ?? flow.id ?? ""), flow])
+  );
+
   return {
     nodes,
     edges,
+    flows,
     raw,
     canonicalModel,
     nodeLookup,
-    relationshipLookup
+    relationshipLookup,
+    flowLookup
   };
 }

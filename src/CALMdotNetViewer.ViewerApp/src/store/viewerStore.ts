@@ -27,7 +27,7 @@ export const useViewerStore = create<ViewerStore>((set) => ({
     set({
       architecture,
       parsedArchitecture,
-      selectedElementId: preferredSelectedElementId ?? parsedArchitecture.nodes[0]?.id ?? null,
+      selectedElementId: preferredSelectedElementId ?? parsedArchitecture.nodes[0]?.id ?? parsedArchitecture.flows[0]?.id ?? null,
       error: null
     }),
   setSelectedElementId: (id) => set({ selectedElementId: id }),

@@ -18,6 +18,20 @@ import {
   selectInitialArchitectureId
 } from "./workspaceState";
 
+function selectInitialElementId(parsed: ReturnType<typeof parseArchitecture>): string | null {
+  return parsed.nodes[0]?.id ?? parsed.flows[0]?.id ?? null;
+}
+
+function resolveFocusElementId(parsed: ReturnType<typeof parseArchitecture>, focus: string | null): string | null {
+  if (!focus) {
+    return null;
+  }
+
+  return parsed.nodes.some((node) => node.id === focus) || parsed.flows.some((flow) => flow.id === focus)
+    ? focus
+    : null;
+}
+
 export function ArchitectureWorkspace() {
   const {
     architecture,
@@ -74,10 +88,8 @@ export function ArchitectureWorkspace() {
         }
 
         const parsed = parseArchitecture(loadedArchitecture.content);
-        const resolvedFocus = targetRoute?.focus && parsed.nodes.some((node) => node.id === targetRoute.focus)
-          ? targetRoute.focus
-          : null;
-        const preferredSelection = resolvedFocus ?? parsed.nodes[0]?.id ?? null;
+        const resolvedFocus = resolveFocusElementId(parsed, targetRoute?.focus ?? null);
+        const preferredSelection = resolvedFocus ?? selectInitialElementId(parsed);
         setArchitecture(loadedArchitecture, parsed, preferredSelection);
         setFocusElementId(resolvedFocus);
         setNavigationParent(targetRoute?.kind === "linked"
@@ -190,7 +202,7 @@ export function ArchitectureWorkspace() {
       setError(null);
       const loadedArchitecture = await architectureApiClient.getArchitecture(architectureId);
       const parsed = parseArchitecture(loadedArchitecture.content);
-      const selectedId = parsed.nodes[0]?.id ?? null;
+      const selectedId = selectInitialElementId(parsed);
       setArchitecture(loadedArchitecture, parsed, selectedId);
       setFocusElementId(null);
       setNavigationParent(null);
@@ -232,7 +244,7 @@ export function ArchitectureWorkspace() {
 
       setArchitectures(availableArchitectures);
       const parsed = parseArchitecture(createdArchitecture.content);
-      const selectedId = parsed.nodes[0]?.id ?? null;
+      const selectedId = selectInitialElementId(parsed);
       setArchitecture(createdArchitecture, parsed, selectedId);
       setFocusElementId(null);
       setNavigationParent(null);
@@ -256,7 +268,7 @@ export function ArchitectureWorkspace() {
       setError(null);
       const linkedArchitecture = await architectureApiClient.getLinkedArchitecture(architecture.id, linkedId);
       const parsed = parseArchitecture(linkedArchitecture.content);
-      const selectedId = parsed.nodes[0]?.id ?? null;
+      const selectedId = selectInitialElementId(parsed);
 
       setArchitecture(linkedArchitecture, parsed, selectedId);
       setFocusElementId(null);
@@ -284,7 +296,7 @@ export function ArchitectureWorkspace() {
       setError(null);
       const parentArchitecture = await architectureApiClient.getArchitecture(navigationParent.id);
       const parsed = parseArchitecture(parentArchitecture.content);
-      const selectedId = navigationParent.focusElementId ?? parsed.nodes[0]?.id ?? null;
+      const selectedId = navigationParent.focusElementId ?? selectInitialElementId(parsed);
 
       setArchitecture(parentArchitecture, parsed, selectedId);
       setFocusElementId(navigationParent.focusElementId);
@@ -344,6 +356,7 @@ export function ArchitectureWorkspace() {
       <section className="workspace-meta">
         {architecture ? <span>{architecture.id}</span> : null}
         {parsedArchitecture ? <span>{parsedArchitecture.nodes.length} nodes</span> : null}
+        {parsedArchitecture ? <span>{parsedArchitecture.flows.length} flows</span> : null}
         {parsedArchitecture ? <span>{parsedArchitecture.edges.length} relationships</span> : null}
         <span>{architectures.length} loaded documents</span>
       </section>

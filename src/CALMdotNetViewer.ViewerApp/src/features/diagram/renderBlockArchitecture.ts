@@ -88,7 +88,9 @@ export async function renderBlockArchitecture(
           "link-prefix": "/"
         }
       : {}),
-    ...(focusElementId ? { "focus-nodes": focusElementId } : {}),
+    ...(optionOverrides?.["focus-flows"]
+      ? {}
+      : (focusElementId ? { "focus-nodes": focusElementId } : {})),
     ...(selectedElementId ? { "highlight-nodes": selectedElementId } : {}),
     ...optionOverrides
   };

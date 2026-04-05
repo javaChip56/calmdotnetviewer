@@ -58,6 +58,18 @@ function buildMetadataEntries(selectedNodeRaw: unknown): DetailEntry[] {
   }));
 }
 
+function buildFlowOverviewEntries(selectedFlowRaw: unknown): DetailEntry[] {
+  if (!isRecord(selectedFlowRaw)) {
+    return [];
+  }
+
+  return [
+    { label: "Unique Id", value: toDisplayValue(selectedFlowRaw["unique-id"]) },
+    { label: "Name", value: toDisplayValue(selectedFlowRaw.name) },
+    { label: "Description", value: toDisplayValue(selectedFlowRaw.description) }
+  ];
+}
+
 function DetailList({ entries }: { entries: DetailEntry[] }) {
   if (entries.length === 0) {
     return <p className="details-empty">No data available.</p>;
@@ -84,9 +96,12 @@ export function DetailsPanel({
   onReturnToParent
 }: DetailsPanelProps) {
   const selectedNode = parsedArchitecture.nodes.find((node) => node.id === selectedElementId) ?? null;
+  const selectedFlow = parsedArchitecture.flows.find((flow) => flow.id === selectedElementId) ?? null;
   const selectedNodeRaw = selectedNode ? parsedArchitecture.nodeLookup[selectedNode.id] : null;
+  const selectedFlowRaw = selectedFlow ? parsedArchitecture.flowLookup[selectedFlow.id] : null;
   const overviewEntries = buildOverviewEntries(selectedNodeRaw);
   const metadataEntries = buildMetadataEntries(selectedNodeRaw);
+  const flowOverviewEntries = buildFlowOverviewEntries(selectedFlowRaw);
   const linkedArchitectures = selectedNode
     ? resolveSelectedNodeLinkedArchitectures(selectedNodeRaw, architecture.linkedArchitectures)
     : [];
@@ -94,8 +109,8 @@ export function DetailsPanel({
   return (
     <aside className="panel">
       <div className="panel-header">
-        <h2>{selectedNode?.label ?? architecture.title}</h2>
-        <span className="panel-meta">{selectedNode ? "Node details" : "No selection"}</span>
+        <h2>{selectedNode?.label ?? selectedFlow?.label ?? architecture.title}</h2>
+        <span className="panel-meta">{selectedNode ? "Node details" : selectedFlow ? "Flow details" : "No selection"}</span>
       </div>
 
       {navigationParent ? (
@@ -150,8 +165,13 @@ export function DetailsPanel({
             </section>
           ) : null}
         </>
+      ) : selectedFlow ? (
+        <section className="details-section">
+          <h3>Overview</h3>
+          <DetailList entries={flowOverviewEntries} />
+        </section>
       ) : (
-        <p>Select a node from the architecture diagram or the tree to view its preview.</p>
+        <p>Select a node or flow from the architecture diagram or the tree to view its preview.</p>
       )}
     </aside>
   );

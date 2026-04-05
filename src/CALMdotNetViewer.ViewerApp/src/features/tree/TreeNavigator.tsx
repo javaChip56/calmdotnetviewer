@@ -14,6 +14,7 @@ export function TreeNavigator({
   linkedNodeIds,
   onSelectElement
 }: TreeNavigatorProps) {
+  const flowsGroupKey = "__flows__";
   const nodeGroups = parsedArchitecture.nodes.reduce<Array<{ type: string; nodes: GraphNode[] }>>((groups, node) => {
     const existingGroup = groups.find((group) => group.type === node.type);
     if (existingGroup) {
@@ -45,16 +46,26 @@ export function TreeNavigator({
         }
       }
 
+      if (parsedArchitecture.flows.length > 0 && !(flowsGroupKey in nextState)) {
+        nextState[flowsGroupKey] = false;
+        hasChanges = true;
+      }
+
       for (const groupType of Object.keys(nextState)) {
-        if (!nodeGroups.some((group) => group.type === groupType)) {
+        if (groupType !== flowsGroupKey && !nodeGroups.some((group) => group.type === groupType)) {
           delete nextState[groupType];
           hasChanges = true;
         }
       }
 
+      if (parsedArchitecture.flows.length === 0 && flowsGroupKey in nextState) {
+        delete nextState[flowsGroupKey];
+        hasChanges = true;
+      }
+
       return hasChanges ? nextState : currentState;
     });
-  }, [parsedArchitecture.nodes]);
+  }, [parsedArchitecture.flows, parsedArchitecture.nodes]);
 
   useEffect(() => {
     if (!selectedElementId) {
@@ -62,15 +73,21 @@ export function TreeNavigator({
     }
 
     const selectedGroup = nodeGroups.find((group) => group.nodes.some((node) => node.id === selectedElementId));
-    if (!selectedGroup) {
+    if (selectedGroup) {
+      setCollapsedGroups((currentState) => ({
+        ...currentState,
+        [selectedGroup.type]: false
+      }));
       return;
     }
 
-    setCollapsedGroups((currentState) => ({
-      ...currentState,
-      [selectedGroup.type]: false
-    }));
-  }, [parsedArchitecture.nodes, selectedElementId]);
+    if (parsedArchitecture.flows.some((flow) => flow.id === selectedElementId)) {
+      setCollapsedGroups((currentState) => ({
+        ...currentState,
+        [flowsGroupKey]: false
+      }));
+    }
+  }, [parsedArchitecture.flows, parsedArchitecture.nodes, selectedElementId]);
 
   function toggleGroup(groupType: string) {
     setCollapsedGroups((currentState) => ({
@@ -151,6 +168,42 @@ export function TreeNavigator({
             </section>
           );
         })}
+
+        {parsedArchitecture.flows.length > 0 ? (
+          <section className="tree-section">
+            <button
+              aria-expanded={!(collapsedGroups[flowsGroupKey] ?? false)}
+              className="tree-toggle"
+              onClick={() => toggleGroup(flowsGroupKey)}
+              type="button"
+            >
+              <span className={`tree-chevron${collapsedGroups[flowsGroupKey] ? "" : " is-open"}`} aria-hidden="true">
+                ▸
+              </span>
+              <span className="tree-toggle-label">Flows</span>
+              <small>{parsedArchitecture.flows.length}</small>
+            </button>
+
+            {!(collapsedGroups[flowsGroupKey] ?? false) ? (
+              <ul className="tree-list tree-sublist">
+                {parsedArchitecture.flows.map((flow) => (
+                  <li key={flow.id}>
+                    <button
+                      className={`tree-item${selectedElementId === flow.id ? " is-selected" : ""}`}
+                      onClick={() => onSelectElement(flow.id)}
+                      type="button"
+                    >
+                      <span className="tree-item-label">
+                        {flow.label}
+                        {flow.description ? <small>{flow.description}</small> : null}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ) : null}
       </div>
     </aside>
   );

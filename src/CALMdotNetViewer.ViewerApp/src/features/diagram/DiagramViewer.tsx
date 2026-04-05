@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent, type Ref } from "react";
 import type { ParsedArchitecture } from "../architecture/types";
 import { renderBlockArchitecture } from "./renderBlockArchitecture";
+import { renderFlowSequenceDiagram } from "./renderFlowSequenceDiagram";
 import { renderRelatedNodesDiagram } from "./renderRelatedNodesDiagram";
 import { findRenderedMermaidNodeElements, resolveRenderedMermaidNodeId } from "./mermaidNodeDom";
 import { PanZoomManager } from "./panZoomManager";
@@ -23,6 +24,12 @@ interface FocusedDiagramSet {
   architecture: RenderedDiagram;
   relatedNodes: RenderedDiagram;
   interfaceView: RenderedDiagram;
+}
+
+interface FocusedFlowDiagramSet {
+  architecture: RenderedDiagram;
+  flowSequence: RenderedDiagram;
+  interfaces: RenderedDiagram;
 }
 
 function DiagramSection({
@@ -91,29 +98,40 @@ export function DiagramViewer({
   onClearFocus
 }: DiagramViewerProps) {
   const selectedNode = parsedArchitecture.nodes.find((node) => node.id === focusElementId) ?? null;
+  const selectedFlow = parsedArchitecture.flows.find((flow) => flow.id === focusElementId) ?? null;
   const [mainDiagram, setMainDiagram] = useState<RenderedDiagram | null>(null);
   const [focusedDiagrams, setFocusedDiagrams] = useState<FocusedDiagramSet | null>(null);
+  const [focusedFlowDiagrams, setFocusedFlowDiagrams] = useState<FocusedFlowDiagramSet | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mainCanvasRef = useRef<HTMLDivElement | null>(null);
   const focusedArchitectureRef = useRef<HTMLDivElement | null>(null);
   const relatedNodesRef = useRef<HTMLDivElement | null>(null);
   const interfaceViewRef = useRef<HTMLDivElement | null>(null);
+  const flowArchitectureRef = useRef<HTMLDivElement | null>(null);
+  const flowSequenceRef = useRef<HTMLDivElement | null>(null);
+  const flowInterfacesRef = useRef<HTMLDivElement | null>(null);
   const mainPanZoomRef = useRef<PanZoomManager | null>(null);
   const focusedArchitecturePanZoomRef = useRef<PanZoomManager | null>(null);
   const relatedNodesPanZoomRef = useRef<PanZoomManager | null>(null);
   const interfaceViewPanZoomRef = useRef<PanZoomManager | null>(null);
+  const flowArchitecturePanZoomRef = useRef<PanZoomManager | null>(null);
+  const flowSequencePanZoomRef = useRef<PanZoomManager | null>(null);
+  const flowInterfacesPanZoomRef = useRef<PanZoomManager | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function renderDiagrams() {
       try {
-        const nextMainDiagram = await renderBlockArchitecture(parsedArchitecture, selectedElementId, null);
-        const nextFocusedDiagrams = focusElementId
+        const selectedNodeId = parsedArchitecture.nodes.some((node) => node.id === selectedElementId)
+          ? selectedElementId
+          : null;
+        const nextMainDiagram = await renderBlockArchitecture(parsedArchitecture, selectedNodeId, null);
+        const nextFocusedDiagrams = selectedNode
           ? await Promise.all([
-              renderBlockArchitecture(parsedArchitecture, selectedElementId, focusElementId),
-              renderRelatedNodesDiagram(parsedArchitecture, focusElementId),
-              renderBlockArchitecture(parsedArchitecture, selectedElementId, focusElementId, undefined, {
+              renderBlockArchitecture(parsedArchitecture, selectedNode.id, selectedNode.id),
+              renderRelatedNodesDiagram(parsedArchitecture, selectedNode.id),
+              renderBlockArchitecture(parsedArchitecture, selectedNode.id, selectedNode.id, undefined, {
                 "render-interfaces": true,
                 "include-containers": "none",
                 "include-children": "none",
@@ -125,6 +143,24 @@ export function DiagramViewer({
               interfaceView
             }))
           : null;
+        const nextFocusedFlowDiagrams = selectedFlow
+          ? await Promise.all([
+              renderBlockArchitecture(parsedArchitecture, null, null, undefined, {
+                "focus-flows": selectedFlow.id
+              }),
+              renderFlowSequenceDiagram(parsedArchitecture, selectedFlow.id),
+              renderBlockArchitecture(parsedArchitecture, null, null, undefined, {
+                "focus-flows": selectedFlow.id,
+                "render-interfaces": true,
+                "edges": "connected",
+                "include-containers": "none"
+              })
+            ]).then(([architecture, flowSequence, interfaces]) => ({
+              architecture,
+              flowSequence,
+              interfaces
+            }))
+          : null;
 
         if (cancelled) {
           return;
@@ -132,12 +168,14 @@ export function DiagramViewer({
 
         setMainDiagram(nextMainDiagram);
         setFocusedDiagrams(nextFocusedDiagrams);
+        setFocusedFlowDiagrams(nextFocusedFlowDiagrams);
         setError(null);
       } catch (renderError) {
         if (!cancelled) {
           setError(renderError instanceof Error ? renderError.message : String(renderError));
           setMainDiagram(null);
           setFocusedDiagrams(null);
+          setFocusedFlowDiagrams(null);
         }
       }
     }
@@ -147,14 +185,17 @@ export function DiagramViewer({
     return () => {
       cancelled = true;
     };
-  }, [focusElementId, parsedArchitecture, selectedElementId]);
+  }, [focusElementId, parsedArchitecture, selectedElementId, selectedFlow, selectedNode]);
 
   useEffect(() => {
     const bindings: Array<[RenderedDiagram | null, HTMLDivElement | null]> = [
       [mainDiagram, mainCanvasRef.current],
       [focusedDiagrams?.architecture ?? null, focusedArchitectureRef.current],
       [focusedDiagrams?.relatedNodes ?? null, relatedNodesRef.current],
-      [focusedDiagrams?.interfaceView ?? null, interfaceViewRef.current]
+      [focusedDiagrams?.interfaceView ?? null, interfaceViewRef.current],
+      [focusedFlowDiagrams?.architecture ?? null, flowArchitectureRef.current],
+      [focusedFlowDiagrams?.flowSequence ?? null, flowSequenceRef.current],
+      [focusedFlowDiagrams?.interfaces ?? null, flowInterfacesRef.current]
     ];
 
     for (const [diagram, element] of bindings) {
@@ -162,14 +203,17 @@ export function DiagramViewer({
         diagram.bindFunctions(element);
       }
     }
-  }, [focusedDiagrams, mainDiagram]);
+  }, [focusedDiagrams, focusedFlowDiagrams, mainDiagram]);
 
   useEffect(() => {
     const sections: Array<[HTMLDivElement | null, React.MutableRefObject<PanZoomManager | null>]> = [
       [mainCanvasRef.current, mainPanZoomRef],
       [focusedArchitectureRef.current, focusedArchitecturePanZoomRef],
       [relatedNodesRef.current, relatedNodesPanZoomRef],
-      [interfaceViewRef.current, interfaceViewPanZoomRef]
+      [interfaceViewRef.current, interfaceViewPanZoomRef],
+      [flowArchitectureRef.current, flowArchitecturePanZoomRef],
+      [flowSequenceRef.current, flowSequencePanZoomRef],
+      [flowInterfacesRef.current, flowInterfacesPanZoomRef]
     ];
 
     for (const [container, managerRef] of sections) {
@@ -192,14 +236,17 @@ export function DiagramViewer({
         managerRef.current = null;
       }
     };
-  }, [focusedDiagrams, mainDiagram]);
+  }, [focusedDiagrams, focusedFlowDiagrams, mainDiagram]);
 
   useEffect(() => {
     const containers = [
       mainCanvasRef.current,
       focusedArchitectureRef.current,
       relatedNodesRef.current,
-      interfaceViewRef.current
+      interfaceViewRef.current,
+      flowArchitectureRef.current,
+      flowSequenceRef.current,
+      flowInterfacesRef.current
     ];
 
     for (const container of containers) {
@@ -215,7 +262,7 @@ export function DiagramViewer({
         }
       }
     }
-  }, [focusedDiagrams, mainDiagram, parsedArchitecture.nodes]);
+  }, [focusedDiagrams, focusedFlowDiagrams, mainDiagram, parsedArchitecture.nodes]);
 
   function handleDiagramClick(event: MouseEvent<HTMLDivElement>, container: HTMLDivElement | null) {
     const target = event.target;
@@ -248,10 +295,10 @@ export function DiagramViewer({
   return (
     <section className="panel panel-diagram-viewer">
       <div className="panel-header">
-        <h2>{selectedNode ? selectedNode.label : "Architecture Overview"}</h2>
+        <h2>{selectedNode ? selectedNode.label : selectedFlow ? selectedFlow.label : "Architecture Overview"}</h2>
         <div className="diagram-header-actions">
           <span className="panel-meta">
-            {focusElementId ? "Node preview" : "Full architecture"}
+            {selectedNode ? "Node preview" : selectedFlow ? "Flow preview" : "Full architecture"}
           </span>
           {focusElementId ? (
             <button className="secondary-button" onClick={onClearFocus} type="button">
@@ -276,7 +323,7 @@ export function DiagramViewer({
         />
       ) : null}
 
-      {focusElementId && focusedDiagrams ? (
+      {selectedNode && focusedDiagrams ? (
         <div className="diagram-focus-stack">
           <DiagramSection
             title="Architecture"
@@ -307,6 +354,40 @@ export function DiagramViewer({
             onZoomOut={() => interfaceViewPanZoomRef.current?.zoomOut()}
             onReset={() => interfaceViewPanZoomRef.current?.reset()}
             onFit={() => interfaceViewPanZoomRef.current?.fit()}
+          />
+        </div>
+      ) : null}
+
+      {selectedFlow && focusedFlowDiagrams ? (
+        <div className="diagram-focus-stack">
+          <DiagramSection
+            title="Architecture"
+            diagram={focusedFlowDiagrams.architecture}
+            containerRef={flowArchitectureRef}
+            onClick={(event) => handleDiagramClick(event, flowArchitectureRef.current)}
+            onZoomIn={() => flowArchitecturePanZoomRef.current?.zoomIn()}
+            onZoomOut={() => flowArchitecturePanZoomRef.current?.zoomOut()}
+            onReset={() => flowArchitecturePanZoomRef.current?.reset()}
+            onFit={() => flowArchitecturePanZoomRef.current?.fit()}
+          />
+          <DiagramSection
+            title="Flow Sequence"
+            diagram={focusedFlowDiagrams.flowSequence}
+            containerRef={flowSequenceRef}
+            onZoomIn={() => flowSequencePanZoomRef.current?.zoomIn()}
+            onZoomOut={() => flowSequencePanZoomRef.current?.zoomOut()}
+            onReset={() => flowSequencePanZoomRef.current?.reset()}
+            onFit={() => flowSequencePanZoomRef.current?.fit()}
+          />
+          <DiagramSection
+            title="Interfaces"
+            diagram={focusedFlowDiagrams.interfaces}
+            containerRef={flowInterfacesRef}
+            onClick={(event) => handleDiagramClick(event, flowInterfacesRef.current)}
+            onZoomIn={() => flowInterfacesPanZoomRef.current?.zoomIn()}
+            onZoomOut={() => flowInterfacesPanZoomRef.current?.zoomOut()}
+            onReset={() => flowInterfacesPanZoomRef.current?.reset()}
+            onFit={() => flowInterfacesPanZoomRef.current?.fit()}
           />
         </div>
       ) : null}

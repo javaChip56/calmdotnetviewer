@@ -58,9 +58,20 @@
   "flows": [
     {
       "unique-id": "payment-request",
-      "source": "channel-ui",
-      "target": "payments-api",
-      "description": "Customer submits payment"
+      "name": "Payment request",
+      "description": "Customer submits payment and the service stores the resulting record.",
+      "transitions": [
+        {
+          "relationship-unique-id": "ui-calls-api",
+          "sequence-number": 1,
+          "description": "Customer submits payment"
+        },
+        {
+          "relationship-unique-id": "api-uses-db",
+          "sequence-number": 2,
+          "description": "Payment record is stored"
+        }
+      ]
     }
   ]
 }
