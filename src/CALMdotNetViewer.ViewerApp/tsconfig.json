@@ -17,10 +17,10 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@finos/calm-models/model": ["../../../../calm-models/src/model/index.ts"],
-      "@finos/calm-models/types": ["../../../../calm-models/src/types/index.ts"],
-      "@finos/calm-models/canonical": ["../../../../calm-models/src/canonical/template-models.ts"],
-      "@repo/calm-widgets/*": ["../../../../calm-widgets/src/*"],
+      "@finos/calm-models/model": ["../../packages/calm-models/src/model/index.ts"],
+      "@finos/calm-models/types": ["../../packages/calm-models/src/types/index.ts"],
+      "@finos/calm-models/canonical": ["../../packages/calm-models/src/canonical/template-models.ts"],
+      "@repo/calm-widgets/*": ["../../packages/calm-widgets/src/*"],
       "lodash": ["./node_modules/@types/lodash/index.d.ts"]
     }
   },

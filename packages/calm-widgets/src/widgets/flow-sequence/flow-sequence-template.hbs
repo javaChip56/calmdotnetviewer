@@ -1,0 +1,15 @@
+```mermaid
+sequenceDiagram
+{{#each transitions}}
+{{#if direction}}
+    {{#if (eq direction 'destination-to-source')}}
+    {{target}} -->> {{source}}: {{{mermaidText description}}}
+    {{else}}
+    {{source}} ->> {{target}}: {{{mermaidText description}}}
+    {{/if}}
+{{else}}
+    {{source}} ->> {{target}}: {{{mermaidText description}}}
+{{/if}}
+{{/each}}
+```
+

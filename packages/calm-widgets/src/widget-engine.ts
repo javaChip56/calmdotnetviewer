@@ -1,0 +1,117 @@
+import Handlebars from 'handlebars';
+import { WidgetRegistry } from './widget-registry';
+import { WidgetRenderer } from './widget-renderer';
+import { CalmWidget } from './types';
+import { registerGlobalTemplateHelpers } from './widget-helpers';
+
+import { TableWidget } from './widgets/table';
+import { ListWidget } from './widgets/list';
+import { JsonViewerWidget } from './widgets/json-viewer';
+import { FlowSequenceWidget } from './widgets/flow-sequence';
+import { RelatedNodesWidget } from './widgets/related-nodes';
+import { BlockArchitectureWidget } from './widgets/block-architecture';
+
+export type WidgetOptions = Record<string, unknown>;
+export type WidgetsOptions = Record<string, WidgetOptions>;
+
+export class WidgetsOptionsContainer {
+    private options: WidgetsOptions;
+    private static instance: WidgetsOptionsContainer;
+
+    private constructor() {
+        this.options = {};
+    }
+
+    public static getInstance(): WidgetsOptionsContainer {
+        if (!this.instance) {
+            this.instance = new WidgetsOptionsContainer();
+        }
+        return this.instance;
+    }
+
+    public reset(): void {
+        this.options = {};
+    }
+
+    public getOptionsForWidget(widgetId: string): WidgetOptions | undefined {
+        return this.options[widgetId] || undefined;
+    }
+
+    public setOptions(options: WidgetsOptions): void {
+        this.options = options;
+    }
+}
+
+export class WidgetEngine {
+    constructor(
+        private readonly handlebars: typeof Handlebars,
+        private readonly registry: WidgetRegistry
+    ) { }
+
+    setupWidgets(widgets: { widget: CalmWidget<unknown, Record<string, unknown>, unknown>, folder: string }[]) {
+        const helpers = registerGlobalTemplateHelpers();
+
+        for (const [name, fn] of Object.entries(helpers)) {
+            if (!this.handlebars.helpers[name]) {
+                this.handlebars.registerHelper(name, fn);
+            } else {
+                console.warn(`[WidgetEngine] ⚠️ Helper '${name}' is already registered. Skipping registration.`);
+            }
+        }
+
+        for (const { widget, folder } of widgets) {
+            const widgetId = widget.id;
+
+            if (helpers[widgetId]) {
+                throw new Error(`[WidgetEngine] ❌ Conflict: widget id '${widgetId}' collides with a global helper name.`);
+            }
+
+            if (this.handlebars.helpers[widgetId]) {
+                console.warn(`[WidgetEngine] ⚠️ Helper '${widgetId}' is already registered. Skipping widget helper registration.`);
+            } else {
+                this.registry.register(widget, folder);
+                this.registerWidgetHelper(widgetId);
+            }
+        }
+    }
+
+
+    registerWidgetHelper(widgetId: string) {
+        this.handlebars.registerHelper(widgetId, (context: unknown, options: Record<string, unknown>) => {
+            const renderer = new WidgetRenderer(this.handlebars, this.registry);
+            const baseOptions = WidgetsOptionsContainer.getInstance().getOptionsForWidget(widgetId);
+            const rendered = renderer.render(widgetId, context, options, baseOptions);
+            return new this.handlebars.SafeString(rendered);
+        });
+    }
+
+    registerDefaultWidgets() {
+        const widgets: { widget: CalmWidget<unknown, object, unknown>, folder: string }[] = [
+            {
+                widget: TableWidget as CalmWidget<unknown, object, unknown>,
+                folder: __dirname + '/widgets/table',
+            },
+            {
+                widget: ListWidget as CalmWidget<unknown, object, unknown>,
+                folder: __dirname + '/widgets/list',
+            },
+            {
+                widget: JsonViewerWidget as CalmWidget<unknown, object, unknown>,
+                folder: __dirname + '/widgets/json-viewer',
+            },
+            {
+                widget: FlowSequenceWidget as CalmWidget<unknown, object, unknown>,
+                folder: __dirname + '/widgets/flow-sequence',
+            },
+            {
+                widget: RelatedNodesWidget as CalmWidget<unknown, object, unknown>,
+                folder: __dirname + '/widgets/related-nodes',
+            },
+            {
+                widget: BlockArchitectureWidget as CalmWidget<unknown, object, unknown>,
+                folder: __dirname + '/widgets/block-architecture',
+            },
+        ];
+        this.setupWidgets(widgets);
+    }
+}
