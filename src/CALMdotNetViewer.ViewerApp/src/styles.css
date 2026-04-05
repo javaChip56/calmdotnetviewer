@@ -157,6 +157,60 @@ button {
   gap: 12px;
 }
 
+.tree-section {
+  border: 1px solid #dbe5f0;
+  border-radius: 16px;
+  background: #fbfdff;
+  overflow: hidden;
+}
+
+.tree-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  background: #f4f8fc;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  color: #1f4168;
+}
+
+.tree-toggle:hover {
+  background: #edf4fb;
+}
+
+.tree-toggle-label {
+  flex: 1;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.tree-toggle small {
+  color: #5d738d;
+}
+
+.tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  color: #4a6585;
+  transition: transform 120ms ease;
+}
+
+.tree-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.tree-sublist {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .tree-item,
 .diagram-node {
   width: 100%;
@@ -174,6 +228,12 @@ button {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
+}
+
+.tree-item-label {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .tree-item small,
