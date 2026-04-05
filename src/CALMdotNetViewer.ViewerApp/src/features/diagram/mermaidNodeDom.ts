@@ -6,6 +6,11 @@ export function buildMermaidNodeDomIdPrefix(nodeId: string): string {
   return `${FLOWCHART_DOM_ID_PREFIX}${mermaidId(nodeId)}-`;
 }
 
+function matchesMermaidNodeDomId(elementId: string, nodeId: string): boolean {
+  const prefix = buildMermaidNodeDomIdPrefix(nodeId);
+  return elementId === prefix || elementId.startsWith(prefix) || elementId.includes(`-${prefix}`);
+}
+
 export function resolveMermaidNodeIdFromElementId(
   elementId: string | null | undefined,
   nodeIds: string[]
@@ -15,7 +20,7 @@ export function resolveMermaidNodeIdFromElementId(
   }
 
   for (const nodeId of nodeIds) {
-    if (elementId.startsWith(buildMermaidNodeDomIdPrefix(nodeId))) {
+    if (matchesMermaidNodeDomId(elementId, nodeId)) {
       return nodeId;
     }
   }
@@ -27,8 +32,9 @@ export function findRenderedMermaidNodeElements(
   container: ParentNode,
   nodeId: string
 ): Element[] {
-  const selector = `[id^="${buildMermaidNodeDomIdPrefix(nodeId)}"]`;
-  return Array.from(container.querySelectorAll(selector));
+  return Array.from(container.querySelectorAll("[id]")).filter((element) =>
+    matchesMermaidNodeDomId(element.getAttribute("id") ?? "", nodeId)
+  );
 }
 
 export function resolveRenderedMermaidNodeId(

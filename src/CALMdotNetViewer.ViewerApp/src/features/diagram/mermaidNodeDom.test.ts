@@ -15,10 +15,20 @@ describe("mermaidNodeDom", () => {
   });
 
   it("finds rendered node elements by their Mermaid DOM ids", () => {
-    const matchingElements = [{ id: "flowchart-payments-api-0" }] as unknown as Element[];
+    const matchingElements = [{
+      getAttribute: (name: string) =>
+        name === "id" ? "calm-dotnet-viewer-1-flowchart-payments-api-0" : null
+    }] as unknown as Element[];
     const host = {
       querySelectorAll: (selector: string) =>
-        selector === '[id^="flowchart-payments-api-"]' ? matchingElements : []
+        selector === "[id]"
+          ? [
+              ...matchingElements,
+              {
+                getAttribute: (name: string) => (name === "id" ? "unrelated" : null)
+              } as unknown as Element
+            ]
+          : []
     } as unknown as ParentNode;
 
     expect(findRenderedMermaidNodeElements(host, "payments-api")).toEqual(matchingElements);
@@ -31,7 +41,17 @@ describe("mermaidNodeDom", () => {
     ).toBe("payments-api");
 
     expect(
-      resolveMermaidNodeIdFromElementId("flowchart-node_end-user-1", ["end-user", "payments-db"])
+      resolveMermaidNodeIdFromElementId(
+        "calm-dotnet-viewer-1-flowchart-payments-api-0",
+        ["payments-api", "payments-db"]
+      )
+    ).toBe("payments-api");
+
+    expect(
+      resolveMermaidNodeIdFromElementId(
+        "calm-dotnet-viewer-1-flowchart-node_end-user-1",
+        ["end-user", "payments-db"]
+      )
     ).toBe("end-user");
 
     expect(
