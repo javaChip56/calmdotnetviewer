@@ -144,6 +144,29 @@ button {
   margin: 0;
 }
 
+.tree-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tree-panel-icon-button {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #c7d5e5;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #244e7e;
+  cursor: pointer;
+}
+
+.tree-panel-icon-button:hover {
+  background: #eef5fc;
+}
+
 .tree-list,
 .diagram-relationships ul {
   list-style: none;
@@ -225,7 +248,7 @@ button {
 
 .tree-item {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   gap: 8px;
 }

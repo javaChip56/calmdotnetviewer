@@ -79,11 +79,35 @@ export function TreeNavigator({
     }));
   }
 
+  function setAllGroupsCollapsed(isCollapsed: boolean) {
+    setCollapsedGroups(Object.fromEntries(nodeGroups.map((group) => [group.type, isCollapsed])));
+  }
+
   return (
     <aside className="panel">
       <div className="panel-header">
         <h2>Model Elements</h2>
-        <span className="panel-meta">{parsedArchitecture.nodes.length} nodes</span>
+        <div className="tree-panel-actions">
+          <button
+            aria-label="Expand all node groups"
+            className="tree-panel-icon-button"
+            onClick={() => setAllGroupsCollapsed(false)}
+            title="Expand all"
+            type="button"
+          >
+            ⤢
+          </button>
+          <button
+            aria-label="Collapse all node groups"
+            className="tree-panel-icon-button"
+            onClick={() => setAllGroupsCollapsed(true)}
+            title="Collapse all"
+            type="button"
+          >
+            ⤡
+          </button>
+          <span className="panel-meta">{parsedArchitecture.nodes.length} nodes</span>
+        </div>
       </div>
 
       <div className="tree-group">
@@ -119,7 +143,6 @@ export function TreeNavigator({
                           {node.label}
                           {linkedNodeIds.has(node.id) ? " (linked)" : ""}
                         </span>
-                        <small>{node.id}</small>
                       </button>
                     </li>
                   ))}
