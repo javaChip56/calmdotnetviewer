@@ -22,4 +22,6 @@ app.MapGet("/health", () => Results.Ok(new
     utc = DateTimeOffset.UtcNow
 }));
 
+app.MapFallbackToFile("index.html");
+
 app.Run();

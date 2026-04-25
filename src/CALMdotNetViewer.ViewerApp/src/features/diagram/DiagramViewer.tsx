@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent, type MutableRefObject, type Ref } from "react";
 import type { ParsedArchitecture } from "../architecture/types";
+import type { AppRoutePreviewPane } from "../../router/appRoutes";
 import { exportDiagramAsPng, exportDiagramAsSvg } from "./diagramExport";
 import { renderBlockArchitecture } from "./renderBlockArchitecture";
 import { renderFlowSequenceDiagram } from "./renderFlowSequenceDiagram";
@@ -13,6 +14,10 @@ interface DiagramViewerProps {
   focusElementId: string | null;
   onSelectElement: (id: string) => void;
   onClearFocus: () => void;
+  isPreviewMode?: boolean;
+  previewPane?: AppRoutePreviewPane;
+  buildPreviewHref?: (pane: AppRoutePreviewPane) => string | null;
+  workspaceHref?: string | null;
 }
 
 interface RenderedDiagram {
@@ -43,7 +48,8 @@ function DiagramSection({
   onReset,
   onFit,
   onExportSvg,
-  onExportPng
+  onExportPng,
+  openInNewTabHref
 }: {
   title: string;
   diagram: RenderedDiagram;
@@ -55,6 +61,7 @@ function DiagramSection({
   onFit?: () => void;
   onExportSvg?: () => void;
   onExportPng?: () => Promise<void> | void;
+  openInNewTabHref?: string | null;
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -77,6 +84,11 @@ function DiagramSection({
       <div className="diagram-section-header">
         <h3>{title}</h3>
         <div className="diagram-controls" aria-label={`${title} controls`}>
+          {openInNewTabHref ? (
+            <a className="diagram-control-btn diagram-open-link" href={openInNewTabHref} rel="noreferrer" target="_blank">
+              Open in new tab
+            </a>
+          ) : null}
           <button className="diagram-control-btn" onClick={onZoomOut} type="button">
             -
           </button>
@@ -165,7 +177,11 @@ export function DiagramViewer({
   selectedElementId,
   focusElementId,
   onSelectElement,
-  onClearFocus
+  onClearFocus,
+  isPreviewMode = false,
+  previewPane = "architecture",
+  buildPreviewHref,
+  workspaceHref
 }: DiagramViewerProps) {
   const selectedNode = parsedArchitecture.nodes.find((node) => node.id === focusElementId) ?? null;
   const selectedRelationship = parsedArchitecture.relationships.find((relationship) => relationship.id === focusElementId) ?? null;
@@ -396,14 +412,23 @@ export function DiagramViewer({
     await exportAction();
   }
 
+  const showArchitecturePreview = !isPreviewMode || previewPane === "architecture";
+  const showFlowPreview = !isPreviewMode || previewPane === "flow";
+  const showInterfacePreview = !isPreviewMode || previewPane === "interface";
+
   return (
-    <section className="panel panel-diagram-viewer">
+    <section className={`panel panel-diagram-viewer${isPreviewMode ? " panel-diagram-viewer-preview" : ""}`}>
       <div className="panel-header">
         <h2>{selectedNode ? selectedNode.label : selectedRelationship ? selectedRelationship.label : selectedFlow ? selectedFlow.label : "Architecture Overview"}</h2>
         <div className="diagram-header-actions">
           <span className="panel-meta">
             {selectedNode ? "Node preview" : selectedRelationship ? "Relationship preview" : selectedFlow ? "Flow preview" : "Full architecture"}
           </span>
+          {isPreviewMode && workspaceHref ? (
+            <a className="secondary-button" href={workspaceHref}>
+              Open workspace view
+            </a>
+          ) : null}
           {focusElementId ? (
             <button className="secondary-button" onClick={onClearFocus} type="button">
               Show full architecture
@@ -414,7 +439,7 @@ export function DiagramViewer({
 
       {error ? <p className="status-banner is-error">{error}</p> : null}
 
-      {!focusElementId && mainDiagram ? (
+      {!focusElementId && mainDiagram && showArchitecturePreview ? (
         <DiagramSection
           title="Architecture Overview"
           diagram={mainDiagram}
@@ -432,182 +457,208 @@ export function DiagramViewer({
             mainPanZoomRef,
             () => exportDiagramAsPng(mainCanvasRef.current, buildExportTitle("architecture-overview", "overview"))
           )}
+          openInNewTabHref={!isPreviewMode ? buildPreviewHref?.("architecture") : null}
         />
       ) : null}
 
       {selectedNode && focusedDiagrams ? (
         <div className="diagram-focus-stack">
-          <DiagramSection
-            title="Architecture"
-            diagram={focusedDiagrams.architecture}
-            containerRef={focusedArchitectureRef}
-            onClick={(event) => handleDiagramClick(event, focusedArchitectureRef.current)}
-            onZoomIn={() => focusedArchitecturePanZoomRef.current?.zoomIn()}
-            onZoomOut={() => focusedArchitecturePanZoomRef.current?.zoomOut()}
-            onReset={() => focusedArchitecturePanZoomRef.current?.reset()}
-            onFit={() => focusedArchitecturePanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              focusedArchitecturePanZoomRef,
-              () => exportDiagramAsSvg(focusedArchitectureRef.current, buildExportTitle(selectedNode.label, "architecture"))
-            )}
-            onExportPng={() => fitThenExport(
-              focusedArchitecturePanZoomRef,
-              () => exportDiagramAsPng(focusedArchitectureRef.current, buildExportTitle(selectedNode.label, "architecture"))
-            )}
-          />
-          <DiagramSection
-            title="Related Nodes"
-            diagram={focusedDiagrams.relatedNodes}
-            containerRef={relatedNodesRef}
-            onClick={(event) => handleDiagramClick(event, relatedNodesRef.current)}
-            onZoomIn={() => relatedNodesPanZoomRef.current?.zoomIn()}
-            onZoomOut={() => relatedNodesPanZoomRef.current?.zoomOut()}
-            onReset={() => relatedNodesPanZoomRef.current?.reset()}
-            onFit={() => relatedNodesPanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              relatedNodesPanZoomRef,
-              () => exportDiagramAsSvg(relatedNodesRef.current, buildExportTitle(selectedNode.label, "related-nodes"))
-            )}
-            onExportPng={() => fitThenExport(
-              relatedNodesPanZoomRef,
-              () => exportDiagramAsPng(relatedNodesRef.current, buildExportTitle(selectedNode.label, "related-nodes"))
-            )}
-          />
-          <DiagramSection
-            title="Interface View"
-            diagram={focusedDiagrams.interfaceView}
-            containerRef={interfaceViewRef}
-            onClick={(event) => handleDiagramClick(event, interfaceViewRef.current)}
-            onZoomIn={() => interfaceViewPanZoomRef.current?.zoomIn()}
-            onZoomOut={() => interfaceViewPanZoomRef.current?.zoomOut()}
-            onReset={() => interfaceViewPanZoomRef.current?.reset()}
-            onFit={() => interfaceViewPanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              interfaceViewPanZoomRef,
-              () => exportDiagramAsSvg(interfaceViewRef.current, buildExportTitle(selectedNode.label, "interface-view"))
-            )}
-            onExportPng={() => fitThenExport(
-              interfaceViewPanZoomRef,
-              () => exportDiagramAsPng(interfaceViewRef.current, buildExportTitle(selectedNode.label, "interface-view"))
-            )}
-          />
+          {showArchitecturePreview ? (
+            <DiagramSection
+              title="Architecture"
+              diagram={focusedDiagrams.architecture}
+              containerRef={focusedArchitectureRef}
+              onClick={(event) => handleDiagramClick(event, focusedArchitectureRef.current)}
+              onZoomIn={() => focusedArchitecturePanZoomRef.current?.zoomIn()}
+              onZoomOut={() => focusedArchitecturePanZoomRef.current?.zoomOut()}
+              onReset={() => focusedArchitecturePanZoomRef.current?.reset()}
+              onFit={() => focusedArchitecturePanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                focusedArchitecturePanZoomRef,
+                () => exportDiagramAsSvg(focusedArchitectureRef.current, buildExportTitle(selectedNode.label, "architecture"))
+              )}
+              onExportPng={() => fitThenExport(
+                focusedArchitecturePanZoomRef,
+                () => exportDiagramAsPng(focusedArchitectureRef.current, buildExportTitle(selectedNode.label, "architecture"))
+              )}
+              openInNewTabHref={!isPreviewMode ? buildPreviewHref?.("architecture") : null}
+            />
+          ) : null}
+          {!isPreviewMode ? (
+            <DiagramSection
+              title="Related Nodes"
+              diagram={focusedDiagrams.relatedNodes}
+              containerRef={relatedNodesRef}
+              onClick={(event) => handleDiagramClick(event, relatedNodesRef.current)}
+              onZoomIn={() => relatedNodesPanZoomRef.current?.zoomIn()}
+              onZoomOut={() => relatedNodesPanZoomRef.current?.zoomOut()}
+              onReset={() => relatedNodesPanZoomRef.current?.reset()}
+              onFit={() => relatedNodesPanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                relatedNodesPanZoomRef,
+                () => exportDiagramAsSvg(relatedNodesRef.current, buildExportTitle(selectedNode.label, "related-nodes"))
+              )}
+              onExportPng={() => fitThenExport(
+                relatedNodesPanZoomRef,
+                () => exportDiagramAsPng(relatedNodesRef.current, buildExportTitle(selectedNode.label, "related-nodes"))
+              )}
+            />
+          ) : null}
+          {showInterfacePreview ? (
+            <DiagramSection
+              title="Interface View"
+              diagram={focusedDiagrams.interfaceView}
+              containerRef={interfaceViewRef}
+              onClick={(event) => handleDiagramClick(event, interfaceViewRef.current)}
+              onZoomIn={() => interfaceViewPanZoomRef.current?.zoomIn()}
+              onZoomOut={() => interfaceViewPanZoomRef.current?.zoomOut()}
+              onReset={() => interfaceViewPanZoomRef.current?.reset()}
+              onFit={() => interfaceViewPanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                interfaceViewPanZoomRef,
+                () => exportDiagramAsSvg(interfaceViewRef.current, buildExportTitle(selectedNode.label, "interface-view"))
+              )}
+              onExportPng={() => fitThenExport(
+                interfaceViewPanZoomRef,
+                () => exportDiagramAsPng(interfaceViewRef.current, buildExportTitle(selectedNode.label, "interface-view"))
+              )}
+              openInNewTabHref={!isPreviewMode ? buildPreviewHref?.("interface") : null}
+            />
+          ) : null}
         </div>
       ) : null}
 
       {selectedRelationship && focusedRelationshipDiagrams ? (
         <div className="diagram-focus-stack">
-          <DiagramSection
-            title="Architecture"
-            diagram={focusedRelationshipDiagrams.architecture}
-            containerRef={focusedArchitectureRef}
-            onClick={(event) => handleDiagramClick(event, focusedArchitectureRef.current)}
-            onZoomIn={() => focusedArchitecturePanZoomRef.current?.zoomIn()}
-            onZoomOut={() => focusedArchitecturePanZoomRef.current?.zoomOut()}
-            onReset={() => focusedArchitecturePanZoomRef.current?.reset()}
-            onFit={() => focusedArchitecturePanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              focusedArchitecturePanZoomRef,
-              () => exportDiagramAsSvg(focusedArchitectureRef.current, buildExportTitle(selectedRelationship.label, "architecture"))
-            )}
-            onExportPng={() => fitThenExport(
-              focusedArchitecturePanZoomRef,
-              () => exportDiagramAsPng(focusedArchitectureRef.current, buildExportTitle(selectedRelationship.label, "architecture"))
-            )}
-          />
-          <DiagramSection
-            title="Related Nodes"
-            diagram={focusedRelationshipDiagrams.relatedNodes}
-            containerRef={relatedNodesRef}
-            onClick={(event) => handleDiagramClick(event, relatedNodesRef.current)}
-            onZoomIn={() => relatedNodesPanZoomRef.current?.zoomIn()}
-            onZoomOut={() => relatedNodesPanZoomRef.current?.zoomOut()}
-            onReset={() => relatedNodesPanZoomRef.current?.reset()}
-            onFit={() => relatedNodesPanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              relatedNodesPanZoomRef,
-              () => exportDiagramAsSvg(relatedNodesRef.current, buildExportTitle(selectedRelationship.label, "related-nodes"))
-            )}
-            onExportPng={() => fitThenExport(
-              relatedNodesPanZoomRef,
-              () => exportDiagramAsPng(relatedNodesRef.current, buildExportTitle(selectedRelationship.label, "related-nodes"))
-            )}
-          />
-          <DiagramSection
-            title="Interface View"
-            diagram={focusedRelationshipDiagrams.interfaceView}
-            containerRef={interfaceViewRef}
-            onClick={(event) => handleDiagramClick(event, interfaceViewRef.current)}
-            onZoomIn={() => interfaceViewPanZoomRef.current?.zoomIn()}
-            onZoomOut={() => interfaceViewPanZoomRef.current?.zoomOut()}
-            onReset={() => interfaceViewPanZoomRef.current?.reset()}
-            onFit={() => interfaceViewPanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              interfaceViewPanZoomRef,
-              () => exportDiagramAsSvg(interfaceViewRef.current, buildExportTitle(selectedRelationship.label, "interface-view"))
-            )}
-            onExportPng={() => fitThenExport(
-              interfaceViewPanZoomRef,
-              () => exportDiagramAsPng(interfaceViewRef.current, buildExportTitle(selectedRelationship.label, "interface-view"))
-            )}
-          />
+          {showArchitecturePreview ? (
+            <DiagramSection
+              title="Architecture"
+              diagram={focusedRelationshipDiagrams.architecture}
+              containerRef={focusedArchitectureRef}
+              onClick={(event) => handleDiagramClick(event, focusedArchitectureRef.current)}
+              onZoomIn={() => focusedArchitecturePanZoomRef.current?.zoomIn()}
+              onZoomOut={() => focusedArchitecturePanZoomRef.current?.zoomOut()}
+              onReset={() => focusedArchitecturePanZoomRef.current?.reset()}
+              onFit={() => focusedArchitecturePanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                focusedArchitecturePanZoomRef,
+                () => exportDiagramAsSvg(focusedArchitectureRef.current, buildExportTitle(selectedRelationship.label, "architecture"))
+              )}
+              onExportPng={() => fitThenExport(
+                focusedArchitecturePanZoomRef,
+                () => exportDiagramAsPng(focusedArchitectureRef.current, buildExportTitle(selectedRelationship.label, "architecture"))
+              )}
+              openInNewTabHref={!isPreviewMode ? buildPreviewHref?.("architecture") : null}
+            />
+          ) : null}
+          {!isPreviewMode ? (
+            <DiagramSection
+              title="Related Nodes"
+              diagram={focusedRelationshipDiagrams.relatedNodes}
+              containerRef={relatedNodesRef}
+              onClick={(event) => handleDiagramClick(event, relatedNodesRef.current)}
+              onZoomIn={() => relatedNodesPanZoomRef.current?.zoomIn()}
+              onZoomOut={() => relatedNodesPanZoomRef.current?.zoomOut()}
+              onReset={() => relatedNodesPanZoomRef.current?.reset()}
+              onFit={() => relatedNodesPanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                relatedNodesPanZoomRef,
+                () => exportDiagramAsSvg(relatedNodesRef.current, buildExportTitle(selectedRelationship.label, "related-nodes"))
+              )}
+              onExportPng={() => fitThenExport(
+                relatedNodesPanZoomRef,
+                () => exportDiagramAsPng(relatedNodesRef.current, buildExportTitle(selectedRelationship.label, "related-nodes"))
+              )}
+            />
+          ) : null}
+          {showInterfacePreview ? (
+            <DiagramSection
+              title="Interface View"
+              diagram={focusedRelationshipDiagrams.interfaceView}
+              containerRef={interfaceViewRef}
+              onClick={(event) => handleDiagramClick(event, interfaceViewRef.current)}
+              onZoomIn={() => interfaceViewPanZoomRef.current?.zoomIn()}
+              onZoomOut={() => interfaceViewPanZoomRef.current?.zoomOut()}
+              onReset={() => interfaceViewPanZoomRef.current?.reset()}
+              onFit={() => interfaceViewPanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                interfaceViewPanZoomRef,
+                () => exportDiagramAsSvg(interfaceViewRef.current, buildExportTitle(selectedRelationship.label, "interface-view"))
+              )}
+              onExportPng={() => fitThenExport(
+                interfaceViewPanZoomRef,
+                () => exportDiagramAsPng(interfaceViewRef.current, buildExportTitle(selectedRelationship.label, "interface-view"))
+              )}
+              openInNewTabHref={!isPreviewMode ? buildPreviewHref?.("interface") : null}
+            />
+          ) : null}
         </div>
       ) : null}
 
       {selectedFlow && focusedFlowDiagrams ? (
         <div className="diagram-focus-stack">
-          <DiagramSection
-            title="Architecture"
-            diagram={focusedFlowDiagrams.architecture}
-            containerRef={flowArchitectureRef}
-            onClick={(event) => handleDiagramClick(event, flowArchitectureRef.current)}
-            onZoomIn={() => flowArchitecturePanZoomRef.current?.zoomIn()}
-            onZoomOut={() => flowArchitecturePanZoomRef.current?.zoomOut()}
-            onReset={() => flowArchitecturePanZoomRef.current?.reset()}
-            onFit={() => flowArchitecturePanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              flowArchitecturePanZoomRef,
-              () => exportDiagramAsSvg(flowArchitectureRef.current, buildExportTitle(selectedFlow.label, "architecture"))
-            )}
-            onExportPng={() => fitThenExport(
-              flowArchitecturePanZoomRef,
-              () => exportDiagramAsPng(flowArchitectureRef.current, buildExportTitle(selectedFlow.label, "architecture"))
-            )}
-          />
-          <DiagramSection
-            title="Flow Sequence"
-            diagram={focusedFlowDiagrams.flowSequence}
-            containerRef={flowSequenceRef}
-            onZoomIn={() => flowSequencePanZoomRef.current?.zoomIn()}
-            onZoomOut={() => flowSequencePanZoomRef.current?.zoomOut()}
-            onReset={() => flowSequencePanZoomRef.current?.reset()}
-            onFit={() => flowSequencePanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              flowSequencePanZoomRef,
-              () => exportDiagramAsSvg(flowSequenceRef.current, buildExportTitle(selectedFlow.label, "flow-sequence"))
-            )}
-            onExportPng={() => fitThenExport(
-              flowSequencePanZoomRef,
-              () => exportDiagramAsPng(flowSequenceRef.current, buildExportTitle(selectedFlow.label, "flow-sequence"))
-            )}
-          />
-          <DiagramSection
-            title="Interfaces"
-            diagram={focusedFlowDiagrams.interfaces}
-            containerRef={flowInterfacesRef}
-            onClick={(event) => handleDiagramClick(event, flowInterfacesRef.current)}
-            onZoomIn={() => flowInterfacesPanZoomRef.current?.zoomIn()}
-            onZoomOut={() => flowInterfacesPanZoomRef.current?.zoomOut()}
-            onReset={() => flowInterfacesPanZoomRef.current?.reset()}
-            onFit={() => flowInterfacesPanZoomRef.current?.fit()}
-            onExportSvg={() => fitThenExport(
-              flowInterfacesPanZoomRef,
-              () => exportDiagramAsSvg(flowInterfacesRef.current, buildExportTitle(selectedFlow.label, "interfaces"))
-            )}
-            onExportPng={() => fitThenExport(
-              flowInterfacesPanZoomRef,
-              () => exportDiagramAsPng(flowInterfacesRef.current, buildExportTitle(selectedFlow.label, "interfaces"))
-            )}
-          />
+          {showArchitecturePreview ? (
+            <DiagramSection
+              title="Architecture"
+              diagram={focusedFlowDiagrams.architecture}
+              containerRef={flowArchitectureRef}
+              onClick={(event) => handleDiagramClick(event, flowArchitectureRef.current)}
+              onZoomIn={() => flowArchitecturePanZoomRef.current?.zoomIn()}
+              onZoomOut={() => flowArchitecturePanZoomRef.current?.zoomOut()}
+              onReset={() => flowArchitecturePanZoomRef.current?.reset()}
+              onFit={() => flowArchitecturePanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                flowArchitecturePanZoomRef,
+                () => exportDiagramAsSvg(flowArchitectureRef.current, buildExportTitle(selectedFlow.label, "architecture"))
+              )}
+              onExportPng={() => fitThenExport(
+                flowArchitecturePanZoomRef,
+                () => exportDiagramAsPng(flowArchitectureRef.current, buildExportTitle(selectedFlow.label, "architecture"))
+              )}
+              openInNewTabHref={!isPreviewMode ? buildPreviewHref?.("architecture") : null}
+            />
+          ) : null}
+          {showFlowPreview ? (
+            <DiagramSection
+              title="Flow Sequence"
+              diagram={focusedFlowDiagrams.flowSequence}
+              containerRef={flowSequenceRef}
+              onZoomIn={() => flowSequencePanZoomRef.current?.zoomIn()}
+              onZoomOut={() => flowSequencePanZoomRef.current?.zoomOut()}
+              onReset={() => flowSequencePanZoomRef.current?.reset()}
+              onFit={() => flowSequencePanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                flowSequencePanZoomRef,
+                () => exportDiagramAsSvg(flowSequenceRef.current, buildExportTitle(selectedFlow.label, "flow-sequence"))
+              )}
+              onExportPng={() => fitThenExport(
+                flowSequencePanZoomRef,
+                () => exportDiagramAsPng(flowSequenceRef.current, buildExportTitle(selectedFlow.label, "flow-sequence"))
+              )}
+              openInNewTabHref={!isPreviewMode ? buildPreviewHref?.("flow") : null}
+            />
+          ) : null}
+          {showInterfacePreview ? (
+            <DiagramSection
+              title="Interfaces"
+              diagram={focusedFlowDiagrams.interfaces}
+              containerRef={flowInterfacesRef}
+              onClick={(event) => handleDiagramClick(event, flowInterfacesRef.current)}
+              onZoomIn={() => flowInterfacesPanZoomRef.current?.zoomIn()}
+              onZoomOut={() => flowInterfacesPanZoomRef.current?.zoomOut()}
+              onReset={() => flowInterfacesPanZoomRef.current?.reset()}
+              onFit={() => flowInterfacesPanZoomRef.current?.fit()}
+              onExportSvg={() => fitThenExport(
+                flowInterfacesPanZoomRef,
+                () => exportDiagramAsSvg(flowInterfacesRef.current, buildExportTitle(selectedFlow.label, "interfaces"))
+              )}
+              onExportPng={() => fitThenExport(
+                flowInterfacesPanZoomRef,
+                () => exportDiagramAsPng(flowInterfacesRef.current, buildExportTitle(selectedFlow.label, "interfaces"))
+              )}
+              openInNewTabHref={!isPreviewMode ? buildPreviewHref?.("interface") : null}
+            />
+          ) : null}
         </div>
       ) : null}
     </section>
