@@ -1,0 +1,53 @@
+{
+  "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+  "metadata": {
+    "title": "Payment Service Details"
+  },
+  "nodes": [
+    {
+      "unique-id": "payment-orchestrator",
+      "node-type": "service",
+      "name": "Payment Orchestrator"
+    },
+    {
+      "unique-id": "fraud-check",
+      "node-type": "service",
+      "name": "Fraud Check"
+    },
+    {
+      "unique-id": "ledger",
+      "node-type": "database",
+      "name": "Ledger"
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "orchestrator-to-fraud",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "payment-orchestrator"
+          },
+          "destination": {
+            "node": "fraud-check"
+          }
+        }
+      },
+      "description": "Requests a fraud decision"
+    },
+    {
+      "unique-id": "orchestrator-to-ledger",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "payment-orchestrator"
+          },
+          "destination": {
+            "node": "ledger"
+          }
+        }
+      },
+      "description": "Persists transaction state"
+    }
+  ]
+}

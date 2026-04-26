@@ -4,6 +4,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <FrontendDistDir>$(MSBuildProjectDirectory)\..\CALMdotNetViewer.ViewerApp\dist</FrontendDistDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -11,5 +12,18 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+
+  <Target Name="CopyViewerAppToPublishDirectory" AfterTargets="Publish" Condition="Exists('$(FrontendDistDir)')">
+    <ItemGroup>
+      <ViewerDistFiles Include="$(FrontendDistDir)\**\*" />
+    </ItemGroup>
+
+    <RemoveDir Directories="$(PublishDir)wwwroot" />
+    <MakeDir Directories="$(PublishDir)wwwroot" />
+    <Copy
+      SourceFiles="@(ViewerDistFiles)"
+      DestinationFiles="@(ViewerDistFiles->'$(PublishDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>

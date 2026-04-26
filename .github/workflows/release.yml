@@ -56,17 +56,24 @@ jobs:
       - name: Publish web app
         run: dotnet publish src/CALMdotNetViewer.Web/CALMdotNetViewer.Web.csproj --configuration Release --output ./artifacts/CALMdotNetViewer.Web
 
-      - name: Package release artifacts
+      - name: Package Windows IIS artifact
         run: |
           mkdir -p artifacts/packages
-          cp -r src/CALMdotNetViewer.ViewerApp/dist artifacts/CALMdotNetViewer.ViewerApp
-          tar -czf artifacts/packages/CALMdotNetViewer.Web-${GITHUB_REF_NAME}.tar.gz -C artifacts CALMdotNetViewer.Web
-          tar -czf artifacts/packages/CALMdotNetViewer.ViewerApp-${GITHUB_REF_NAME}.tar.gz -C artifacts CALMdotNetViewer.ViewerApp
+          cd artifacts/CALMdotNetViewer.Web
+          zip -r ../packages/CALMdotNetViewer.Web-IIS-${GITHUB_REF_NAME}.zip .
+
+      - name: Build Linux Docker image artifact
+        run: |
+          docker build \
+            --file packaging/docker/linux/Dockerfile \
+            --tag calmdotnetviewer-web:${GITHUB_REF_NAME} \
+            artifacts/CALMdotNetViewer.Web
+          docker save calmdotnetviewer-web:${GITHUB_REF_NAME} | gzip > artifacts/packages/CALMdotNetViewer.Web-linux-docker-${GITHUB_REF_NAME}.tar.gz
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            artifacts/packages/CALMdotNetViewer.Web-${{ github.ref_name }}.tar.gz
-            artifacts/packages/CALMdotNetViewer.ViewerApp-${{ github.ref_name }}.tar.gz
+            artifacts/packages/CALMdotNetViewer.Web-IIS-${{ github.ref_name }}.zip
+            artifacts/packages/CALMdotNetViewer.Web-linux-docker-${{ github.ref_name }}.tar.gz
