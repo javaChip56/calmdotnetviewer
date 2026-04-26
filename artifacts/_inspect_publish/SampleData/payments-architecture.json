@@ -1,0 +1,77 @@
+{
+  "$schema": "https://calm.finos.org/release/1.1/meta/calm.json",
+  "metadata": {
+    "title": "Payments Architecture"
+  },
+  "nodes": [
+    {
+      "unique-id": "channel-ui",
+      "node-type": "webclient",
+      "name": "Channel UI"
+    },
+    {
+      "unique-id": "payments-api",
+      "node-type": "service",
+      "name": "Payments API",
+      "details": {
+        "detailed-architecture": {
+          "reference": "https://specs.internal/payment-service"
+        }
+      }
+    },
+    {
+      "unique-id": "payments-db",
+      "node-type": "database",
+      "name": "Payments DB"
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "ui-calls-api",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "channel-ui"
+          },
+          "destination": {
+            "node": "payments-api"
+          }
+        }
+      },
+      "description": "Calls payments API"
+    },
+    {
+      "unique-id": "api-uses-db",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "payments-api"
+          },
+          "destination": {
+            "node": "payments-db"
+          }
+        }
+      },
+      "description": "Reads and writes payment records"
+    }
+  ],
+  "flows": [
+    {
+      "unique-id": "payment-request",
+      "name": "Payment request",
+      "description": "Customer submits payment and the service stores the resulting record.",
+      "transitions": [
+        {
+          "relationship-unique-id": "ui-calls-api",
+          "sequence-number": 1,
+          "description": "Customer submits payment"
+        },
+        {
+          "relationship-unique-id": "api-uses-db",
+          "sequence-number": 2,
+          "description": "Payment record is stored"
+        }
+      ]
+    }
+  ]
+}

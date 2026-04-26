@@ -118,6 +118,10 @@ button {
   gap: 18px;
 }
 
+.workspace-preview {
+  display: block;
+}
+
 .panel {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid #dbe5f0;
@@ -129,6 +133,10 @@ button {
 
 .panel-diagram-viewer {
   min-height: calc(100vh - 220px);
+}
+
+.panel-diagram-viewer-preview {
+  min-height: calc(100vh - 48px);
 }
 
 .panel-header {
@@ -366,6 +374,11 @@ button {
   height: clamp(460px, 60vh, 720px);
 }
 
+.panel-diagram-viewer-preview .diagram-canvas {
+  min-height: 70vh;
+  height: clamp(560px, 78vh, 960px);
+}
+
 .diagram-section-header {
   display: flex;
   justify-content: space-between;
@@ -392,12 +405,16 @@ button {
 }
 
 .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid #c7d5e5;
   border-radius: 10px;
   background: #ffffff;
   color: #244e7e;
   padding: 8px 12px;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .workspace-action-button {
@@ -413,6 +430,9 @@ button {
 }
 
 .diagram-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid #c7d5e5;
   border-radius: 10px;
   background: #ffffff;
@@ -420,6 +440,7 @@ button {
   padding: 6px 10px;
   cursor: pointer;
   min-width: 40px;
+  text-decoration: none;
 }
 
 .diagram-control-btn:hover,
